@@ -70,19 +70,19 @@ cd overage
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+# Install the package in editable mode (required for `import proxy` and scripts)
+make install-dev
+# Equivalent: pip install -e ".[dev]"
 
 # Copy environment template and configure
 cp .env.example .env
 # Edit .env with your API keys (optional for demo mode)
 
-# Apply database migrations
-make migrate
+# Development mode creates SQLite tables on startup. When Alembic migrations
+# exist, run: make migrate
 
-# Generate demo data (no API keys needed)
-python scripts/demo_data.py --calls 500 --days 30
+# Generate demo data (no API keys needed). Note the printed demo API key for the dashboard.
+make demo
 
 # Start the proxy server (port 8000)
 make run
@@ -90,9 +90,12 @@ make run
 # In a separate terminal, start the dashboard (port 8501)
 make run-dashboard
 
-# Open the dashboard
+# Open the dashboard and paste your Overage API key (from `make demo` output or
+# POST /v1/auth/register then POST /v1/auth/apikey).
 open http://localhost:8501
 ```
+
+If SQLite reports “readonly database” on some removable drives (exFAT), set `DATABASE_URL` in `.env` to a path on your local disk (for example under your home directory).
 
 ### Verify It Works
 
@@ -125,18 +128,20 @@ curl http://localhost:8000/v1/proxy/openai \
   -d '{"model": "o3", "messages": [{"role": "user", "content": "What is 2+2?"}]}'
 ```
 
-### Python SDK (1-Line Change)
+### Python SDK (OpenAI)
+
+Point the client at Overage and pass your Overage API key on every request. The OpenAI SDK posts to `{base_url}/chat/completions`, which Overage exposes at `/v1/proxy/openai/chat/completions`.
 
 ```python
+import os
 from openai import OpenAI
 
-# Before: direct to OpenAI
-client = OpenAI()
+client = OpenAI(
+    base_url="http://localhost:8000/v1/proxy/openai",
+    api_key=os.environ["OPENAI_API_KEY"],
+    default_headers={"X-API-Key": os.environ["OVERAGE_API_KEY"]},
+)
 
-# After: route through Overage (1-line change)
-client = OpenAI(base_url="http://localhost:8000/v1/proxy/openai")
-
-# Everything else stays the same
 response = client.chat.completions.create(
     model="o3",
     messages=[{"role": "user", "content": "Solve this math problem..."}],
