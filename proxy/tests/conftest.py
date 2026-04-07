@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -16,7 +17,14 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from proxy.storage.models import APICallLog, APIKey, Base, EstimationResult, User
+from proxy.storage.models import (
+    APICallLog,
+    APIKey,
+    Base,
+    DiscrepancyAlert,
+    EstimationResult,
+    User,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -199,6 +207,61 @@ async def sample_estimation(
     db_session.add(estimation)
     await db_session.flush()
     return estimation
+
+
+@pytest_asyncio.fixture
+async def sample_discrepancy_alert(db_session: AsyncSession, test_user: User) -> DiscrepancyAlert:
+    """Create an active discrepancy alert for the test user."""
+    now = datetime.now(tz=UTC)
+    alert = DiscrepancyAlert(
+        user_id=test_user.id,
+        window_start=now - timedelta(days=1),
+        window_end=now,
+        call_count=42,
+        aggregate_discrepancy_pct=22.5,
+        dollar_impact=12.34,
+        confidence_level="medium",
+        threshold_pct=15.0,
+        alert_status="active",
+    )
+    db_session.add(alert)
+    await db_session.flush()
+    return alert
+
+
+@pytest_asyncio.fixture
+async def stranger_user(db_session: AsyncSession) -> User:
+    """A second user (no API key fixture) for cross-tenant alert tests."""
+    user = User(
+        email="stranger@overage.dev",
+        name="Stranger",
+        password_hash=hashlib.sha256(b"other-password").hexdigest(),
+    )
+    db_session.add(user)
+    await db_session.flush()
+    return user
+
+
+@pytest_asyncio.fixture
+async def stranger_discrepancy_alert(
+    db_session: AsyncSession, stranger_user: User
+) -> DiscrepancyAlert:
+    """Active alert belonging to ``stranger_user`` (not ``test_api_key``'s user)."""
+    now = datetime.now(tz=UTC)
+    alert = DiscrepancyAlert(
+        user_id=stranger_user.id,
+        window_start=now - timedelta(days=2),
+        window_end=now - timedelta(days=1),
+        call_count=5,
+        aggregate_discrepancy_pct=30.0,
+        dollar_impact=1.0,
+        confidence_level="low",
+        threshold_pct=15.0,
+        alert_status="active",
+    )
+    db_session.add(alert)
+    await db_session.flush()
+    return alert
 
 
 # ---------------------------------------------------------------------------

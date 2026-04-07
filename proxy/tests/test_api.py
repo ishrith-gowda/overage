@@ -13,7 +13,7 @@ import pytest
 if TYPE_CHECKING:
     import httpx
 
-    from proxy.storage.models import APICallLog, EstimationResult
+    from proxy.storage.models import APICallLog, DiscrepancyAlert, EstimationResult
 
 
 class TestHealthEndpoint:
@@ -276,6 +276,75 @@ class TestAlertsEndpoint:
         data = response.json()
         assert data["alerts"] == []
         assert data["total"] == 0
+
+
+class TestAcknowledgeAlert:
+    """Tests for POST /v1/alerts/{id}/acknowledge."""
+
+    @pytest.mark.asyncio
+    async def test_acknowledge_requires_auth(self, client: httpx.AsyncClient) -> None:
+        """Missing API key returns 401."""
+        response = await client.post("/v1/alerts/1/acknowledge")
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_acknowledge_unknown_returns_404(
+        self, client: httpx.AsyncClient, test_api_key: str, db_session: Any
+    ) -> None:
+        """Non-existent alert id returns 404."""
+        await db_session.commit()
+        response = await client.post(
+            "/v1/alerts/99999/acknowledge",
+            headers={"X-API-Key": test_api_key},
+        )
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_acknowledge_other_users_alert_returns_404(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        stranger_discrepancy_alert: DiscrepancyAlert,
+        db_session: Any,
+    ) -> None:
+        """Cannot acknowledge another user's alert."""
+        await db_session.commit()
+        response = await client.post(
+            f"/v1/alerts/{stranger_discrepancy_alert.id}/acknowledge",
+            headers={"X-API-Key": test_api_key},
+        )
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_acknowledge_active_sets_status_and_is_idempotent(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        sample_discrepancy_alert: DiscrepancyAlert,
+        db_session: Any,
+    ) -> None:
+        """Active alert becomes acknowledged; repeat POST is idempotent."""
+        await db_session.commit()
+        aid = sample_discrepancy_alert.id
+        r1 = await client.post(
+            f"/v1/alerts/{aid}/acknowledge",
+            headers={"X-API-Key": test_api_key},
+        )
+        assert r1.status_code == 200
+        d1 = r1.json()
+        assert d1["alert_status"] == "acknowledged"
+        assert d1["acknowledged_at"] is not None
+
+        r2 = await client.post(
+            f"/v1/alerts/{aid}/acknowledge",
+            headers={"X-API-Key": test_api_key},
+        )
+        assert r2.status_code == 200
+        d2 = r2.json()
+        assert d2["alert_status"] == "acknowledged"
+        # JSON may emit trailing Z on first response only depending on serialization path.
+        assert d2["acknowledged_at"] is not None
+        assert d2["acknowledged_at"].replace("Z", "") == d1["acknowledged_at"].replace("Z", "")
 
 
 class TestTimeseriesEndpoint:

@@ -564,6 +564,36 @@ async def list_alerts(
     return {"alerts": serialized, "total": len(serialized)}
 
 
+@router.post(
+    "/alerts/{alert_id}/acknowledge",
+    response_model=DiscrepancyAlertRead,
+    summary="Acknowledge a discrepancy alert",
+)
+async def acknowledge_alert(
+    alert_id: int,
+    current_user: Annotated[User, Depends(validate_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> DiscrepancyAlertRead:
+    """Mark an alert as acknowledged (idempotent if already acknowledged)."""
+    result = await session.execute(
+        select(DiscrepancyAlert).where(
+            DiscrepancyAlert.id == alert_id,
+            DiscrepancyAlert.user_id == current_user.id,
+        )
+    )
+    alert = result.scalar_one_or_none()
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    if alert.alert_status != "acknowledged":
+        alert.alert_status = "acknowledged"
+        alert.acknowledged_at = datetime.now(tz=UTC)
+        await session.flush()
+
+    logger.info("alert_acknowledged", alert_id=alert_id, user_id=current_user.id)
+    return DiscrepancyAlertRead.model_validate(alert)
+
+
 # ============================================================================
 # Auth endpoints
 # ============================================================================
