@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from fpdf import FPDF  # type: ignore[import-untyped]
+    from fpdf import FPDF
 
     from proxy.reporting.types import AuditReportBundle
 
