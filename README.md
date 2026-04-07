@@ -148,6 +148,53 @@ response = client.chat.completions.create(
 )
 ```
 
+Install the official SDK if needed: `pip install openai`.
+
+### Proxying an Anthropic Call
+
+```bash
+curl http://localhost:8000/v1/proxy/anthropic \
+  -H "X-API-Key: $OVERAGE_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"claude-sonnet-4-20250514","max_tokens":256,"messages":[{"role":"user","content":"Hello"}]}'
+```
+
+### Python SDK (Anthropic)
+
+The Anthropic SDK posts to `{base_url}/v1/messages`. Overage exposes that at `/v1/proxy/anthropic/v1/messages` when `base_url` is `http://localhost:8000/v1/proxy/anthropic`.
+
+```python
+import os
+from anthropic import Anthropic
+
+client = Anthropic(
+    base_url="http://localhost:8000/v1/proxy/anthropic",
+    api_key=os.environ["ANTHROPIC_API_KEY"],
+    default_headers={"X-API-Key": os.environ["OVERAGE_API_KEY"]},
+)
+
+message = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=256,
+    messages=[{"role": "user", "content": "Hello"}],
+)
+```
+
+Install: `pip install anthropic`.
+
+### Latency benchmark (wire RTT)
+
+With the proxy running (`make run` in another terminal):
+
+```bash
+make benchmark
+# Equivalent: python scripts/benchmark.py --iterations 200
+```
+
+This measures round-trip time to `GET /health` (local baseline). Provider-facing latency and TPS calibration use `scripts/profile_tps.py` when you have API keys.
+
 ### Viewing Discrepancies
 
 ```bash
