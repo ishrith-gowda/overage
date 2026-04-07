@@ -6,10 +6,10 @@ Reference: INSTRUCTIONS.md Section 10 (Database Patterns).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -46,17 +46,30 @@ def init_engine(database_url: str | None = None) -> AsyncEngine:
 
     url = database_url or get_settings().database_url
 
-    # SQLite needs check_same_thread=False for async
-    connect_args: dict[str, bool] = {}
+    connect_args: dict[str, bool | int] = {}
+    engine_kwargs: dict[str, Any] = {
+        "echo": get_settings().debug,
+        "pool_pre_ping": True,
+    }
     if url.startswith("sqlite"):
         connect_args["check_same_thread"] = False
+        connect_args["timeout"] = 30
+        engine_kwargs["pool_pre_ping"] = False
 
     _engine = create_async_engine(
         url,
-        echo=get_settings().debug,
         connect_args=connect_args,
-        pool_pre_ping=True,
+        **engine_kwargs,
     )
+    if url.startswith("sqlite"):
+
+        @event.listens_for(_engine.sync_engine, "connect")
+        def _set_sqlite_pragma(dbapi_conn: Any, _rec: Any) -> None:
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA journal_mode=DELETE")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.close()
+
     _session_factory = async_sessionmaker(
         _engine,
         class_=AsyncSession,
