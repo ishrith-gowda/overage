@@ -227,6 +227,22 @@ def fetch_active_alerts(url: str, key: str, params_key: str) -> dict[str, Any]:
         return {"alerts": [], "total": 0}
 
 
+@st.cache_data(ttl=300)
+def fetch_report_pdf(url: str, key: str, start_d: str, end_d: str) -> bytes | None:
+    """Download PDF audit report for ``GET /v1/report`` (PRD Story 6)."""
+    try:
+        resp = httpx.get(
+            f"{url}/v1/report",
+            headers=_headers(),
+            params={"start_date": start_d, "end_date": end_d},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        return resp.content
+    except Exception:
+        return None
+
+
 # Cache key includes filters so data refreshes when filters change
 _cache_key = (
     f"{api_url}|{api_key}|{date_range!s}|{provider_filter!s}|{model_filter!s}|{summary_group_by!s}"
@@ -297,6 +313,18 @@ with col5:
 with col6:
     honoring = kpi.get("honoring_rate_pct", 0)
     st.metric("Honoring Rate", f"{honoring:.1f}%")
+
+if isinstance(date_range, tuple) and len(date_range) == 2:
+    d0, d1 = date_range[0], date_range[1]
+    report_pdf = fetch_report_pdf(api_url, api_key, str(d0), str(d1))
+    if report_pdf:
+        st.download_button(
+            "Download PDF audit report (Story 6)",
+            data=report_pdf,
+            file_name=f"overage-audit-{d0}-{d1}.pdf",
+            mime="application/pdf",
+            help="Uses GET /v1/report for the sidebar date range.",
+        )
 
 if summary_groups:
     st.subheader("Discrepancy by group")
