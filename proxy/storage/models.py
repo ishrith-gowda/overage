@@ -307,6 +307,49 @@ class SummaryStats(BaseModel):
     honoring_rate_pct: float = 0.0
 
 
+class SummaryGroupRow(BaseModel):
+    """Per-group aggregates when ``group_by`` is set on ``GET /v1/summary`` (PRD Story 8)."""
+
+    group_key: str = Field(..., description="Stable key: provider, model, or provider::model")
+    provider: str | None = None
+    model: str | None = None
+    call_count: int = 0
+    total_reported_reasoning_tokens: int = 0
+    total_estimated_reasoning_tokens: int = 0
+    aggregate_discrepancy_pct: float = 0.0
+    avg_discrepancy_pct: float = 0.0
+    total_dollar_impact: float = 0.0
+    low_confidence: bool = Field(
+        default=False,
+        description="True when call_count < 10 for this group",
+    )
+
+
+class SummaryWithGroups(BaseModel):
+    """Summary response when ``group_by`` is used: overall plus grouped rows."""
+
+    overall: SummaryStats
+    groups: list[SummaryGroupRow]
+
+
+class DiscrepancyAlertRead(BaseModel):
+    """Discrepancy alert row for ``GET /v1/alerts``."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    window_start: datetime
+    window_end: datetime
+    call_count: int
+    aggregate_discrepancy_pct: float
+    dollar_impact: float
+    confidence_level: str
+    threshold_pct: float
+    alert_status: str
+    acknowledged_at: datetime | None
+    created_at: datetime
+
+
 class TimeseriesPoint(BaseModel):
     """A single data point for the time-series chart endpoint."""
 
