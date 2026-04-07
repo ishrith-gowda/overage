@@ -6,7 +6,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Builder — install Python dependencies
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 # Prevent Python from writing .pyc files and enable unbuffered output
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -40,7 +40,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 # ---------------------------------------------------------------------------
 # Stage 2: Runtime — minimal image with only what's needed
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 LABEL maintainer="Ishrith Gowda" \
       version="0.1.0" \
