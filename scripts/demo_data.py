@@ -37,7 +37,7 @@ structlog.configure(
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.dev.ConsoleRenderer(),
     ],
-    wrapper_class=structlog.make_filtering_bound_logger(structlog.get_level_from_name("INFO")),
+    wrapper_class=structlog.make_filtering_bound_logger(structlog._log_levels.NAME_TO_LEVEL["info"]),
     logger_factory=structlog.PrintLoggerFactory(),
 )
 logger = structlog.get_logger(__name__)
