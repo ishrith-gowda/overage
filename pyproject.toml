@@ -1,0 +1,257 @@
+# pyproject.toml — Overage project configuration
+# Single source of truth for dependencies, tool config, and metadata.
+# Reference: INSTRUCTIONS.md Section 4 (Tech Stack), Section 5 (Coding Standards)
+
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["proxy*", "dashboard*"]
+
+[project]
+name = "overage"
+version = "0.1.0"
+description = "Independent audit layer for hidden LLM reasoning token billing"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [{ name = "Ishrith Gowda" }]
+keywords = ["llm", "audit", "billing", "reasoning-tokens", "finops"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial",
+]
+
+dependencies = [
+    # --- Web framework & server ---
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.32,<1.0",
+    # --- HTTP client (async, for forwarding to LLM providers) ---
+    "httpx>=0.28,<1.0",
+    # --- Database ORM + migrations ---
+    "sqlalchemy[asyncio]>=2.0,<3.0",
+    "alembic>=1.14,<2.0",
+    "aiosqlite>=0.20,<1.0",       # SQLite async driver (local dev)
+    "asyncpg>=0.30,<1.0",         # PostgreSQL async driver (production)
+    # --- Data validation & settings ---
+    "pydantic>=2.10,<3.0",
+    "pydantic-settings>=2.7,<3.0",
+    "python-dotenv>=1.0,<2.0",
+    # --- Structured logging ---
+    "structlog>=24.4,<26.0",
+    # --- Error tracking ---
+    "sentry-sdk[fastapi]>=2.19,<3.0",
+    # --- ML inference (PALACE model) ---
+    "torch>=2.5,<3.0",
+    "transformers>=4.47,<5.0",
+    "peft>=0.14,<1.0",
+    # --- Numerical / scientific ---
+    "numpy>=2.1,<3.0",
+    "scipy>=1.14,<2.0",
+    "scikit-learn>=1.6,<2.0",
+    # --- Utilities ---
+    "python-multipart>=0.0.18",   # FastAPI form/file upload support
+]
+
+[project.optional-dependencies]
+dev = [
+    # --- Linting & formatting (single tool replaces flake8+black+isort) ---
+    "ruff>=0.8,<1.0",
+    # --- Static type checking ---
+    "mypy>=1.13,<2.0",
+    # --- Testing ---
+    "pytest>=8.3,<9.0",
+    "pytest-asyncio>=0.24,<1.0",
+    "pytest-cov>=6.0,<7.0",
+    "pytest-timeout>=2.3,<3.0",
+    "pytest-xdist>=3.5,<4.0",    # Parallel test execution
+    # --- Test utilities ---
+    "factory-boy>=3.3,<4.0",     # Model factories for test data
+    "faker>=33.0,<40.0",         # Fake data generation
+    # --- Security scanning ---
+    "bandit>=1.8,<2.0",
+    "safety>=3.2,<4.0",
+    # --- Pre-commit hooks ---
+    "pre-commit>=4.0,<5.0",
+    "detect-secrets>=1.5,<2.0",
+    # --- Dashboard (dev only; production dashboard deployed separately) ---
+    "streamlit>=1.41,<2.0",
+    "plotly>=5.24,<6.0",
+    "pandas>=2.2,<3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ishrith-gowda/overage"
+Documentation = "https://github.com/ishrith-gowda/overage/blob/main/ARCHITECTURE.md"
+Repository = "https://github.com/ishrith-gowda/overage"
+Issues = "https://github.com/ishrith-gowda/overage/issues"
+
+# ---------------------------------------------------------------------------
+# ruff — replaces flake8 + black + isort in one tool (10-100x faster)
+# Reference: INSTRUCTIONS.md Section 5.3
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+# Only lint/format the proxy source and tests; exclude model training scripts
+# and dashboard (Streamlit has its own patterns)
+extend-exclude = ["proxy/storage/migrations/versions", "scripts", "files*"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes — unused imports, undefined names
+    "I",     # isort — import ordering
+    "N",     # pep8-naming — function/class naming conventions
+    "UP",    # pyupgrade — use modern Python syntax (3.12+)
+    "ANN",   # flake8-annotations — enforce type annotations
+    "B",     # flake8-bugbear — common bugs and design problems
+    "A",     # flake8-builtins — don't shadow builtins
+    "COM",   # flake8-commas — trailing comma enforcement
+    "C4",    # flake8-comprehensions — simplify comprehensions
+    "DTZ",   # flake8-datetimez — enforce timezone-aware datetimes
+    "ISC",   # flake8-implicit-str-concat — catch implicit string concat
+    "PIE",   # flake8-pie — misc lints
+    "PT",    # flake8-pytest-style — pytest best practices
+    "Q",     # flake8-quotes — consistent quote style
+    "RSE",   # flake8-raise — raise statement best practices
+    "RET",   # flake8-return — return statement consistency
+    "SLF",   # flake8-self — don't access private members
+    "SIM",   # flake8-simplify — simplify code
+    "TID",   # flake8-tidy-imports — ban relative imports
+    "TCH",   # flake8-type-checking — move type-only imports to TYPE_CHECKING
+    "ARG",   # flake8-unused-arguments — catch unused function arguments
+    "PTH",   # flake8-use-pathlib — prefer pathlib over os.path
+    "ERA",   # eradicate — commented-out code
+    "PL",    # pylint — selected pylint rules
+    "TRY",   # tryceratops — exception handling best practices
+    "FLY",   # flynt — prefer f-strings
+    "PERF",  # perflint — performance anti-patterns
+    "RUF",   # ruff-specific rules
+    "T20",   # flake8-print — catch print() statements
+    "S",     # flake8-bandit — security checks
+]
+ignore = [
+    "S101",    # Allow assert in tests (pytest uses assert)
+    "COM812",  # Conflicts with ruff formatter trailing comma
+    "ISC001",  # Conflicts with ruff formatter implicit string concat
+    "TRY003",  # Allow long messages in exception constructors
+    "TRY400",  # structlog.error() is the correct pattern (not logging.exception)
+    "PLR0913", # Allow functions with >5 args (FastAPI endpoints need many DI params)
+    "PLR2004", # Magic values are acceptable in comparisons (thresholds, status codes)
+    "PLC0415", # Deferred imports are intentional for ML code and optional deps
+    "SLF001",  # Private member access is needed for tests and SDK client patching
+    "TRY300",  # else-after-try is overly prescriptive for simple error handling
+    "S104",    # Binding to all interfaces (0.0.0.0) is intentional for server config
+    "ANN401",  # Allow Any in type annotations (sometimes unavoidable with provider JSON)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests: allow assertions (S101 already globally ignored), skip annotations, allow magic values
+"proxy/tests/*" = ["ANN", "S", "PLR2004", "ARG", "ERA"]
+# Alembic migrations: auto-generated, skip most checks
+"proxy/storage/migrations/*" = ["ANN", "ERA", "UP"]
+# Scripts: less strict (one-off tooling)
+"scripts/*" = ["ANN", "T20", "S"]
+# Dashboard: Streamlit patterns differ from FastAPI conventions
+"dashboard/*" = ["ANN", "T20", "ARG", "DTZ", "SLF"]
+"sdk/*" = ["ANN", "T20", "SLF"]
+"examples/*" = ["ANN", "T20", "S"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["overage"]
+
+[tool.ruff.lint.flake8-annotations]
+allow-star-arg-any = true
+
+# ---------------------------------------------------------------------------
+# mypy — static type checking in strict mode
+# Reference: INSTRUCTIONS.md Section 5.4
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+# Pydantic integration for proper BaseModel type checking
+plugins = ["pydantic.mypy"]
+# Exclude directories that don't need strict typing
+exclude = [
+    "model/",       # ML training scripts — typing is looser
+    "dashboard/",   # Streamlit code — different patterns
+    "proxy/storage/migrations/",  # Auto-generated migrations
+    "scripts/",     # One-off scripts
+]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# ---------------------------------------------------------------------------
+# pytest — test runner configuration
+# Reference: INSTRUCTIONS.md Section 8
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["proxy/tests"]
+addopts = [
+    "--tb=short",
+    "--strict-markers",
+    "--strict-config",
+    "-ra",                          # Show summary of all non-passing tests
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks integration tests requiring database or network",
+    "e2e: marks end-to-end tests requiring full stack",
+]
+filterwarnings = [
+    "error",                        # Treat warnings as errors
+    "ignore::DeprecationWarning:transformers.*",  # HuggingFace deprecation noise
+    "ignore::sqlalchemy.exc.SADeprecationWarning",  # SQLAlchemy 2.0 migration noise
+]
+
+# ---------------------------------------------------------------------------
+# coverage — test coverage configuration
+# ---------------------------------------------------------------------------
+[tool.coverage.run]
+source = ["proxy"]
+omit = [
+    "proxy/tests/*",
+    "proxy/main.py",               # Entry point — tested via integration tests
+    "proxy/config.py",             # Settings — tested implicitly
+]
+branch = true                       # Track branch coverage, not just line coverage
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = true                 # Don't show fully covered files in report
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@overload",
+    "raise NotImplementedError",
+    "\\.\\.\\.",                    # Ellipsis (abstract method bodies)
+]
