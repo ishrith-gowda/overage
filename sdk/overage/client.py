@@ -8,16 +8,14 @@ import httpx
 
 
 class OverageClient:
-    """Thin wrapper that patches OpenAI / Anthropic clients to route through Overage.
+    """Thin helper to point OpenAI / Anthropic SDKs at the Overage proxy.
 
-    The "1-line change" promise: create an OverageClient, then call
-    ``patch_openai`` or ``patch_anthropic`` on your existing provider client.
-    All subsequent calls flow through the Overage reverse proxy, which records
-    reasoning-token usage so you can audit your bill.
+    The proxy expects your **Overage** API key on every request via ``X-API-Key``.
+    Provider keys (OpenAI / Anthropic) are passed through by each SDK as usual.
 
     Args:
-        api_key: Your Overage API key.
-        proxy_url: Base URL of the Overage proxy (default: ``https://api.overage.dev``).
+        api_key: Your Overage API key (``ovg_live_...``).
+        proxy_url: Base URL of the Overage proxy (default: production hostname).
     """
 
     def __init__(self, api_key: str, proxy_url: str = "https://api.overage.dev") -> None:
@@ -25,7 +23,7 @@ class OverageClient:
         self.proxy_url = proxy_url.rstrip("/")
         self._http = httpx.Client(
             base_url=self.proxy_url,
-            headers={"Authorization": f"Bearer {self.api_key}"},
+            headers={"X-API-Key": self.api_key},
             timeout=30.0,
         )
 
@@ -34,30 +32,40 @@ class OverageClient:
     # ------------------------------------------------------------------
 
     def patch_openai(self, client: Any) -> Any:
-        """Patch an OpenAI client to route requests through the Overage proxy.
+        """Point an OpenAI SDK client at ``/v1/proxy/openai`` with Overage auth.
 
         Args:
             client: An ``openai.OpenAI`` (or ``AsyncOpenAI``) instance.
 
         Returns:
-            The same client instance, now pointing at the Overage proxy.
+            A new client configured for the proxy (``with_options`` / ``copy``).
         """
-        client.base_url = f"{self.proxy_url}/openai/v1"
-        client._custom_headers["X-Overage-Key"] = self.api_key
-        return client
+        copy_fn = getattr(client, "with_options", None) or getattr(client, "copy", None)
+        if copy_fn is None:
+            msg = "OpenAI client must support with_options() or copy()"
+            raise TypeError(msg)
+        return copy_fn(
+            base_url=f"{self.proxy_url}/v1/proxy/openai",
+            default_headers={"X-API-Key": self.api_key},
+        )
 
     def patch_anthropic(self, client: Any) -> Any:
-        """Patch an Anthropic client to route requests through the Overage proxy.
+        """Point an Anthropic SDK client at ``/v1/proxy/anthropic`` with Overage auth.
 
         Args:
             client: An ``anthropic.Anthropic`` (or ``AsyncAnthropic``) instance.
 
         Returns:
-            The same client instance, now pointing at the Overage proxy.
+            A new client configured for the proxy.
         """
-        client._base_url = f"{self.proxy_url}/anthropic/v1"
-        client._custom_headers["X-Overage-Key"] = self.api_key
-        return client
+        copy_fn = getattr(client, "with_options", None) or getattr(client, "copy", None)
+        if copy_fn is None:
+            msg = "Anthropic client must support with_options() or copy()"
+            raise TypeError(msg)
+        return copy_fn(
+            base_url=f"{self.proxy_url}/v1/proxy/anthropic",
+            default_headers={"X-API-Key": self.api_key},
+        )
 
     # ------------------------------------------------------------------
     # Overage management API
@@ -67,21 +75,25 @@ class OverageClient:
         self,
         start_date: str | None = None,
         end_date: str | None = None,
+        group_by: str | None = None,
     ) -> dict[str, Any]:
-        """Fetch the reasoning-token discrepancy summary.
+        """Fetch aggregate summary; optional ``group_by`` for per-group breakdown.
 
         Args:
-            start_date: Optional ISO-8601 date string (inclusive lower bound).
-            end_date: Optional ISO-8601 date string (inclusive upper bound).
+            start_date: Optional ISO date (inclusive).
+            end_date: Optional ISO date (inclusive).
+            group_by: Optional ``provider``, ``model``, or ``provider_model``.
 
         Returns:
-            A dict with billing vs. observed token counts and discrepancy info.
+            Either flat summary fields or ``{"overall": ..., "groups": [...]}``.
         """
         params: dict[str, str] = {}
         if start_date:
             params["start_date"] = start_date
         if end_date:
             params["end_date"] = end_date
+        if group_by:
+            params["group_by"] = group_by
 
         resp = self._http.get("/v1/summary", params=params)
         resp.raise_for_status()
@@ -92,15 +104,28 @@ class OverageClient:
 
         Args:
             limit: Maximum number of records to return.
-            offset: Number of records to skip (for pagination).
+            offset: Number of records to skip for pagination.
 
         Returns:
-            A dict containing a list of call records and pagination metadata.
+            A dict containing call rows and pagination metadata.
         """
         resp = self._http.get(
             "/v1/calls",
             params={"limit": limit, "offset": offset},
         )
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_alerts(self, status: str = "active") -> dict[str, Any]:
+        """List discrepancy alerts for the authenticated user.
+
+        Args:
+            status: ``active``, ``acknowledged``, ``resolved``, or ``all``.
+
+        Returns:
+            ``{"alerts": [...], "total": n}``.
+        """
+        resp = self._http.get("/v1/alerts", params={"status": status})
         resp.raise_for_status()
         return resp.json()
 
