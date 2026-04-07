@@ -113,11 +113,11 @@ class PALACEEstimator:
 
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        self._tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+        self._tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]  # nosec B615
             self._model_path,
             trust_remote_code=True,
         )
-        base_model = AutoModelForCausalLM.from_pretrained(
+        base_model = AutoModelForCausalLM.from_pretrained(  # nosec B615
             self._model_path,
             torch_dtype=torch.float16 if self._device == "cuda" else torch.float32,
             device_map=self._device,
