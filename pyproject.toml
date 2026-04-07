@@ -56,6 +56,9 @@ dependencies = [
     "scikit-learn>=1.6,<2.0",
     # --- Utilities ---
     "python-multipart>=0.0.18",   # FastAPI form/file upload support
+    # --- PDF audit reports (PRD Story 6) ---
+    "fpdf2>=2.8,<3.0",
+    "matplotlib>=3.9,<4.0",
 ]
 
 [project.optional-dependencies]
@@ -201,6 +204,16 @@ exclude = [
     "proxy/storage/migrations/",  # Auto-generated migrations
     "scripts/",     # One-off scripts
 ]
+
+# Avoid mypy fixup crashes with NumPy 2 type aliases when following matplotlib imports.
+[[tool.mypy.overrides]]
+module = ["numpy.*", "matplotlib", "matplotlib.*"]
+follow_imports = "skip"
+
+# fpdf2: optional stubs; cell() ln= vs new_x/new_y differs across versions.
+[[tool.mypy.overrides]]
+module = "proxy.reporting.pdf_audit"
+disable_error_code = ["arg-type", "import-untyped", "unused-ignore"]
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
