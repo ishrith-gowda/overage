@@ -1,0 +1,81 @@
+{
+    // ==========================================================================
+    // Overage — VS Code workspace settings
+    // Reference: INSTRUCTIONS.md Section 5 (Coding Standards)
+    // ==========================================================================
+
+    // --- Python environment ---
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    "python.analysis.typeCheckingMode": "strict",
+    "python.analysis.autoImportCompletions": true,
+
+    // --- Formatting: ruff handles everything (replaces black + isort) ---
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        // Organize imports on save (ruff isort integration)
+        "source.organizeImports": "explicit"
+    },
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "editor.rulers": [100]
+    },
+
+    // --- Ruff extension settings ---
+    "ruff.lineLength": 100,
+    "ruff.lint.run": "onType",
+    "ruff.fixAll": true,
+    "ruff.organizeImports": true,
+
+    // --- Testing: pytest ---
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "proxy/tests",
+        "-v",
+        "--no-cov",
+        "--timeout=30"
+    ],
+
+    // --- GitHub Copilot: point to project instructions ---
+    "github.copilot.chat.codeGeneration.instructions": [
+        {
+            "file": "INSTRUCTIONS.md"
+        },
+        {
+            "file": ".github/copilot-instructions.md"
+        }
+    ],
+
+    // --- File exclusions (hide noise from sidebar and search) ---
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.mypy_cache": true,
+        "**/.ruff_cache": true,
+        "**/.pytest_cache": true,
+        "**/*.pyc": true,
+        "**/*.pyo": true,
+        "**/*.egg-info": true,
+        "htmlcov": true
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/.git": true,
+        "**/__pycache__": true,
+        "**/.mypy_cache": true,
+        "htmlcov": true,
+        "alembic/versions": true
+    },
+
+    // --- Editor preferences ---
+    "editor.minimap.enabled": false,
+    "editor.bracketPairColorization.enabled": true,
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "cursorpyright.analysis.autoImportCompletions": true,
+    "cursorpyright.analysis.typeCheckingMode": "strict"
+}
