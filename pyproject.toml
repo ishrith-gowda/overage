@@ -56,6 +56,9 @@ dependencies = [
     "scikit-learn>=1.6,<2.0",
     # --- Utilities ---
     "python-multipart>=0.0.18",   # FastAPI form/file upload support
+    # --- PDF audit reports (PRD Story 6) ---
+    "fpdf2>=2.8,<3.0",
+    "matplotlib>=3.9,<4.0",
 ]
 
 [project.optional-dependencies]
