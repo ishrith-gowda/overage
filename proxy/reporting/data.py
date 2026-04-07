@@ -15,7 +15,6 @@ from proxy.storage.models import (
     SummaryGroupRow,
     SummaryStats,
     TimeseriesPoint,
-    User,
 )
 
 
@@ -232,19 +231,19 @@ async def _fetch_top_calls(
 
 async def load_audit_report_bundle(
     session: AsyncSession,
-    user: User,
+    user_id: int,
+    user_label: str,
     start: date,
     end: date,
 ) -> AuditReportBundle:
-    """Aggregate calls in ``[start, end]`` for ``user`` into a PDF render bundle."""
-    label = user.email or f"user_{user.id}"
-    overall = await _fetch_overall(session, user.id, start, end)
-    by_provider = await _fetch_groups(session, user.id, start, end, "provider")
-    by_model = await _fetch_groups(session, user.id, start, end, "model")
-    ts = await _fetch_timeseries(session, user.id, start, end)
-    tops = await _fetch_top_calls(session, user.id, start, end)
+    """Aggregate calls in ``[start, end]`` for ``user_id`` into a PDF render bundle."""
+    overall = await _fetch_overall(session, user_id, start, end)
+    by_provider = await _fetch_groups(session, user_id, start, end, "provider")
+    by_model = await _fetch_groups(session, user_id, start, end, "model")
+    ts = await _fetch_timeseries(session, user_id, start, end)
+    tops = await _fetch_top_calls(session, user_id, start, end)
     return AuditReportBundle(
-        user_label=label,
+        user_label=user_label,
         period_start=start,
         period_end=end,
         overall=overall,

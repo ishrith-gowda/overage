@@ -565,7 +565,9 @@ async def get_audit_report(
     from proxy.reporting.data import load_audit_report_bundle
     from proxy.reporting.pdf_audit import render_audit_pdf
 
-    bundle = await load_audit_report_bundle(session, current_user, start_date, end_date)
+    uid = current_user.id
+    user_label = current_user.email or f"user_{uid}"
+    bundle = await load_audit_report_bundle(session, uid, user_label, start_date, end_date)
     pdf_bytes = render_audit_pdf(bundle)
     filename = f"overage-audit-{start_date}-{end_date}.pdf"
 
