@@ -16,6 +16,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from proxy.api.auth import validate_api_key
 from proxy.estimation.aggregator import DiscrepancyAggregator
@@ -198,9 +199,14 @@ async def list_calls(
             APICallLog.timestamp <= datetime.combine(end_date, datetime.max.time(), tzinfo=UTC)
         )
 
-    stmt = stmt.order_by(APICallLog.timestamp.desc()).limit(limit).offset(offset)
+    stmt = (
+        stmt.options(selectinload(APICallLog.estimation))
+        .order_by(APICallLog.timestamp.desc())
+        .limit(limit)
+        .offset(offset)
+    )
     result = await session.execute(stmt)
-    calls = result.scalars().all()
+    calls = result.scalars().unique().all()
 
     # True total count for pagination
     count_stmt = select(func.count(APICallLog.id)).where(APICallLog.user_id == current_user.id)
@@ -220,7 +226,7 @@ async def list_calls(
     total = total_result.scalar() or 0
 
     return {
-        "calls": [_call_to_dict(c) for c in calls],
+        "calls": [_call_to_list_dict(c) for c in calls],
         "total": total,
         "limit": limit,
         "offset": offset,
@@ -573,6 +579,27 @@ def _call_to_dict(call: APICallLog) -> dict[str, Any]:
         "timestamp": call.timestamp.isoformat() if call.timestamp else None,
         "request_id": call.request_id,
     }
+
+
+def _call_to_list_dict(call: APICallLog) -> dict[str, Any]:
+    """Serialize a call for GET /v1/calls including estimation summary when present."""
+    row: dict[str, Any] = _call_to_dict(call)
+    est = call.estimation
+    if est is not None:
+        row["estimated_reasoning_tokens"] = est.combined_estimated_tokens
+        row["discrepancy_pct"] = round(est.discrepancy_pct, 4)
+        row["timing_r_squared"] = est.timing_r_squared
+        row["timing_estimated_tokens"] = est.timing_estimated_tokens
+        row["signals_agree"] = est.signals_agree
+        row["dollar_impact"] = round(est.dollar_impact, 6)
+    else:
+        row["estimated_reasoning_tokens"] = None
+        row["discrepancy_pct"] = None
+        row["timing_r_squared"] = None
+        row["timing_estimated_tokens"] = None
+        row["signals_agree"] = None
+        row["dollar_impact"] = None
+    return row
 
 
 def _estimation_to_dict(est: EstimationResult) -> dict[str, Any]:
