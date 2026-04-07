@@ -81,7 +81,7 @@ dev = [
     "detect-secrets>=1.5,<2.0",
     # --- Dashboard (dev only; production dashboard deployed separately) ---
     "streamlit>=1.41,<2.0",
-    "plotly>=5.24,<6.0",
+    "plotly>=5.24,<7.0",
     "pandas>=2.2,<3.0",
 ]
 
