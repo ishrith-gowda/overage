@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import and_, case, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from proxy.reporting.types import AuditReportBundle, AuditTopCall
 from proxy.storage.models import (
@@ -182,19 +184,17 @@ async def _fetch_timeseries(
         .order_by(func.date(APICallLog.timestamp))
     )
     result = await session.execute(stmt)
-    points: list[TimeseriesPoint] = []
-    for row in result.all():
-        points.append(
-            TimeseriesPoint(
-                date=str(row.day),
-                call_count=row.call_count or 0,
-                reported_reasoning_tokens=row.reported or 0,
-                estimated_reasoning_tokens=row.estimated or 0,
-                discrepancy_pct=round(float(row.discrepancy or 0), 2),
-                dollar_impact=round(float(row.dollars or 0), 2),
-            )
+    return [
+        TimeseriesPoint(
+            date=str(row.day),
+            call_count=row.call_count or 0,
+            reported_reasoning_tokens=row.reported or 0,
+            estimated_reasoning_tokens=row.estimated or 0,
+            discrepancy_pct=round(float(row.discrepancy or 0), 2),
+            dollar_impact=round(float(row.dollars or 0), 2),
         )
-    return points
+        for row in result.all()
+    ]
 
 
 async def _fetch_top_calls(
