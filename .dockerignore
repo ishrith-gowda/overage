@@ -1,0 +1,64 @@
+# .dockerignore — Exclude from Docker build context
+# Keeps the build context small and fast. Only proxy code + dependencies
+# need to be in the Docker image.
+
+# Version control
+.git
+.github
+.gitignore
+
+# IDE / editor config
+.vscode
+.idea
+
+# Documentation (not needed in runtime image)
+docs/
+*.md
+!README.md
+
+# Environment files (secrets must come from env vars, not files)
+.env
+.env.*
+
+# Development & testing tools
+proxy/tests/
+htmlcov/
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Dashboard (deployed separately, not in the proxy Docker image)
+dashboard/
+
+# Model evaluation data (not needed in production)
+model/eval/
+
+# ML model weights (mounted as volumes or downloaded at startup)
+models/
+*.bin
+*.safetensors
+*.pt
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Scripts (development utilities, not production code)
+scripts/
+
+# Docker files (avoid recursive inclusion)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Node.js (if any)
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,16 @@
+{
+    // Recommended extensions for working on the Overage codebase.
+    // VS Code will prompt to install these when opening the project.
+    "recommendations": [
+        "charliermarsh.ruff",           // Ruff linter + formatter (replaces flake8, black, isort)
+        "ms-python.python",             // Core Python support
+        "ms-python.mypy-type-checker",  // Mypy integration for inline type errors
+        "github.copilot",               // GitHub Copilot (AI code completion)
+        "github.copilot-chat",          // Copilot Chat (AI assistant)
+        "ms-azuretools.vscode-docker",  // Docker / docker-compose support
+        "mtxr.sqltools",                // SQL editor + database explorer
+        "mtxr.sqltools-driver-pg",      // PostgreSQL driver for SQLTools
+        "tamasfe.even-better-toml",     // TOML syntax support (pyproject.toml)
+        "redhat.vscode-yaml"            // YAML support (GitHub Actions, docker-compose)
+    ]
+}

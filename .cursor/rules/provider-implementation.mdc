@@ -1,0 +1,45 @@
+---
+description: How to implement a new LLM provider adapter
+globs: proxy/providers/**/*.py
+alwaysApply: false
+---
+
+# Adding a New Provider
+
+Follow the abstract interface in `proxy/providers/base.py`.
+
+## Steps
+
+1. Create `proxy/providers/<name>.py`
+2. Implement `LLMProvider` abstract class
+3. Register in `proxy/main.py` lifespan via `provider_registry.register()`
+4. Add tests in `proxy/tests/test_<name>_provider.py`
+
+## Template
+
+```python
+class NewProvider(LLMProvider):
+    def __init__(self) -> None:
+        self._client: httpx.AsyncClient | None = None
+
+    async def forward_request(self, request: ProviderRequest) -> ProviderResponse:
+        """Forward non-streaming request to provider."""
+        ...
+
+    async def forward_streaming_request(self, request: ProviderRequest) -> tuple[ProviderResponse, list[bytes]]:
+        """Forward streaming request, accumulate chunks, extract usage from final chunk."""
+        ...
+
+    def extract_reasoning_tokens(self, raw_usage: dict[str, Any]) -> int:
+        """Extract reasoning/thinking token count from provider-specific usage format."""
+        ...
+
+    def get_provider_name(self) -> str:
+        return "new_provider"
+```
+
+## Provider-Specific Token Fields
+
+- OpenAI: `usage.completion_tokens_details.reasoning_tokens`
+- Anthropic: `usage.thinking_tokens`
+- Gemini: `usage_metadata.thoughts_token_count`

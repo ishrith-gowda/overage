@@ -1,0 +1,113 @@
+# docker-compose.yml — Local development stack
+# Provides: proxy (FastAPI), database (PostgreSQL), dashboard (Streamlit)
+# Usage: docker compose up -d --build
+# Reference: ARCHITECTURE.md Section 8.1 (Local Development)
+
+services:
+  # -------------------------------------------------------------------------
+  # Proxy — FastAPI reverse proxy with hot reload
+  # -------------------------------------------------------------------------
+  proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: overage-proxy
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source code for hot reload (override the COPY in Dockerfile)
+      - ./proxy:/app/proxy:ro
+      - ./alembic.ini:/app/alembic.ini:ro
+    env_file:
+      - .env
+    environment:
+      # Override for local dev: use PostgreSQL from the db service
+      DATABASE_URL: postgresql+asyncpg://overage:overage_dev@db:5432/overage
+      OVERAGE_ENV: development
+      DEBUG: "true"
+      LOG_LEVEL: DEBUG
+      ESTIMATION_ENABLED: "true"
+    # Override CMD to enable hot reload for development
+    command: >
+      uvicorn proxy.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/proxy
+      --log-level debug
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - overage-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # -------------------------------------------------------------------------
+  # Database — PostgreSQL 16 (matches Supabase production version)
+  # -------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: overage-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: overage
+      POSTGRES_PASSWORD: overage_dev
+      POSTGRES_DB: overage
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - overage-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U overage -d overage"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # -------------------------------------------------------------------------
+  # Dashboard — Streamlit app for viewing discrepancy data
+  # -------------------------------------------------------------------------
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: overage-dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./dashboard:/app/dashboard:ro
+    env_file:
+      - .env
+    environment:
+      # Dashboard uses sync SQLAlchemy — standard psycopg2 connection string
+      DATABASE_URL: postgresql://overage:overage_dev@db:5432/overage
+    command: >
+      streamlit run dashboard/app.py
+      --server.port 8501
+      --server.address 0.0.0.0
+      --server.headless true
+      --browser.gatherUsageStats false
+    depends_on:
+      proxy:
+        condition: service_healthy
+    networks:
+      - overage-network
+    restart: unless-stopped
+
+networks:
+  overage-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
