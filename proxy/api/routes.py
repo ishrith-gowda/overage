@@ -20,8 +20,6 @@ from sqlalchemy.orm import selectinload
 
 from proxy.api.auth import validate_api_key
 from proxy.estimation.aggregator import DiscrepancyAggregator
-from proxy.reporting.data import load_audit_report_bundle
-from proxy.reporting.pdf_audit import render_audit_pdf
 from proxy.estimation.palace import PALACEEstimator
 from proxy.estimation.timing import TimingEstimator
 from proxy.providers.base import ProviderRequest, provider_registry
@@ -563,6 +561,9 @@ async def get_audit_report(
             status_code=422,
             detail=f"Date range must not exceed {max_days} days",
         )
+
+    from proxy.reporting.data import load_audit_report_bundle
+    from proxy.reporting.pdf_audit import render_audit_pdf
 
     bundle = await load_audit_report_bundle(session, current_user, start_date, end_date)
     pdf_bytes = render_audit_pdf(bundle)
