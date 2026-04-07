@@ -205,6 +205,11 @@ exclude = [
     "scripts/",     # One-off scripts
 ]
 
+# Avoid mypy fixup crashes with NumPy 2 type aliases when following matplotlib imports.
+[[tool.mypy.overrides]]
+module = ["numpy.*", "matplotlib", "matplotlib.*"]
+follow_imports = "skip"
+
 [tool.pydantic-mypy]
 init_forbid_extra = true
 init_typed = true
