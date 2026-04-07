@@ -70,6 +70,8 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Deploy to Railway
+        id: deploy
+        if: ${{ secrets.RAILWAY_TOKEN != '' && secrets.RAILWAY_DEPLOY_WEBHOOK != '' }}
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
@@ -81,10 +83,17 @@ jobs:
             "${{ secrets.RAILWAY_DEPLOY_WEBHOOK }}" \
             --fail --silent --show-error
 
+      - name: Skip deploy (no Railway secrets)
+        if: ${{ secrets.RAILWAY_TOKEN == '' || secrets.RAILWAY_DEPLOY_WEBHOOK == '' }}
+        run: |
+          echo "::notice::Skipping Railway deploy — set RAILWAY_TOKEN and RAILWAY_DEPLOY_WEBHOOK repository secrets to enable."
+
       - name: Wait for deployment to stabilize
+        if: ${{ steps.deploy.outcome == 'success' }}
         run: sleep 30
 
       - name: Post-deploy smoke test
+        if: ${{ steps.deploy.outcome == 'success' && secrets.PRODUCTION_URL != '' }}
         env:
           DEPLOY_URL: ${{ secrets.PRODUCTION_URL }}
         run: |
