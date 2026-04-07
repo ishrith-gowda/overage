@@ -77,6 +77,13 @@ def set_estimators(
     summary="OpenAI-compatible path (drop-in base_url for the OpenAI SDK)",
     include_in_schema=False,
 )
+@router.post(
+    "/proxy/{provider_name}/v1/messages",
+    response_model=None,
+    responses={401: {"model": ErrorResponse}, 502: {"model": ErrorResponse}},
+    summary="Anthropic-compatible path (drop-in base_url for the Anthropic SDK)",
+    include_in_schema=False,
+)
 async def proxy_request(
     provider_name: str,
     request: Request,

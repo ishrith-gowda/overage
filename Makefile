@@ -20,7 +20,7 @@ DASH_PORT := 8501
 # ---------------------------------------------------------------------------
 .PHONY: install install-dev lint format typecheck test test-fast test-unit \
         test-integration security run run-dashboard docker-up docker-down \
-        docker-build migrate migrate-generate seed demo profile-tps report \
+        docker-build migrate migrate-generate seed demo benchmark profile-tps report \
         clean pre-commit-install all check help
 
 # ---------------------------------------------------------------------------
@@ -146,6 +146,9 @@ seed: ## Seed the database with test data
 
 demo: ## Generate synthetic demo data (no API keys needed)
 	$(PYTHON) scripts/demo_data.py --calls 500 --days 30
+
+benchmark: ## Measure HTTP latency to GET /health (start proxy with `make run` first)
+	$(PYTHON) scripts/benchmark.py
 
 profile-tps: ## Profile tokens-per-second rates for supported models
 	$(PYTHON) scripts/profile_tps.py

@@ -126,6 +126,67 @@ class TestProxyOpenAINonStreaming:
         assert response.status_code == 200
         assert response.json()["model"] == "o3-mini"
 
+
+class TestProxyAnthropicNonStreaming:
+    """Non-streaming Anthropic proxy with mocked upstream (Messages API shape)."""
+
+    @pytest.mark.asyncio
+    async def test_proxy_anthropic_v1_messages_path_matches_sdk(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        mock_anthropic_response: Any,
+    ) -> None:
+        """Alias path matches Anthropic Python SDK (base_url + /v1/messages)."""
+        raw = mock_anthropic_response(
+            model="claude-sonnet-4-20250514",
+            thinking_tokens=1200,
+        )
+        prov_response = ProviderResponse(
+            provider="anthropic",
+            model="claude-sonnet-4-20250514",
+            raw_response=raw,
+            raw_usage=raw["usage"],
+            input_tokens=raw["usage"]["input_tokens"],
+            output_tokens=raw["usage"]["output_tokens"],
+            reasoning_tokens=1200,
+            total_latency_ms=88.0,
+            ttft_ms=None,
+            status_code=200,
+            is_streaming=False,
+        )
+        mock_provider = AsyncMock()
+        mock_provider.forward_request = AsyncMock(return_value=prov_response)
+
+        with (
+            patch("proxy.api.routes.provider_registry.get", return_value=mock_provider),
+            patch("proxy.api.routes._record_and_estimate", new=AsyncMock()),
+        ):
+            response = await client.post(
+                "/v1/proxy/anthropic/v1/messages",
+                headers={
+                    "X-API-Key": test_api_key,
+                    "x-api-key": "sk-ant-test",
+                    "anthropic-version": "2023-06-01",
+                },
+                json={
+                    "model": "claude-sonnet-4-20250514",
+                    "max_tokens": 256,
+                    "messages": [{"role": "user", "content": "Hello"}],
+                    "stream": False,
+                },
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["model"] == "claude-sonnet-4-20250514"
+        assert body["usage"]["thinking_tokens"] == 1200
+        mock_provider.forward_request.assert_awaited_once()
+
+
+class TestProxyErrors:
+    """Error responses for invalid proxy targets."""
+
     @pytest.mark.asyncio
     async def test_proxy_unknown_provider_returns_error(
         self,
