@@ -197,6 +197,8 @@ This measures round-trip time to `GET /health` (local baseline). Provider-facing
 
 ### Viewing Discrepancies
 
+Each item in `GET /v1/calls` includes `reported_reasoning_tokens` plus, when an estimation exists, `estimated_reasoning_tokens`, `discrepancy_pct`, `timing_r_squared`, and related fields (`null` if estimation has not run yet).
+
 ```bash
 # List recent calls with discrepancy data
 curl http://localhost:8000/v1/calls \

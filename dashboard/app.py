@@ -317,42 +317,41 @@ if calls:
     if "timestamp" in df.columns:
         df["timestamp"] = pd.to_datetime(df["timestamp"])
 
-    # Add discrepancy column if estimation data is available
     display_cols = [
         "id",
         "provider",
         "model",
         "reported_reasoning_tokens",
+        "estimated_reasoning_tokens",
+        "discrepancy_pct",
+        "timing_r_squared",
+        "signals_agree",
         "total_latency_ms",
         "is_streaming",
         "timestamp",
     ]
     available_cols = [c for c in display_cols if c in df.columns]
 
-    # Color coding: apply background color based on discrepancy
-    def _color_discrepancy(val: float) -> str:
-        """Return CSS color for discrepancy values."""
-        if abs(val) < 5:
-            return "background-color: rgba(76, 175, 80, 0.2)"  # Green
-        if abs(val) < 15:
-            return "background-color: rgba(255, 193, 7, 0.2)"  # Yellow
-        return "background-color: rgba(244, 67, 54, 0.2)"  # Red
+    display_df = df[available_cols].copy()
 
-    st.dataframe(
-        df[available_cols],
-        use_container_width=True,
-        height=400,
-        column_config={
-            "id": st.column_config.NumberColumn("Call ID", width="small"),
-            "provider": st.column_config.TextColumn("Provider", width="small"),
-            "model": st.column_config.TextColumn("Model", width="medium"),
-            "reported_reasoning_tokens": st.column_config.NumberColumn(
-                "Reasoning Tokens", format="%d"
-            ),
-            "total_latency_ms": st.column_config.NumberColumn("Latency (ms)", format="%.0f"),
-            "timestamp": st.column_config.DatetimeColumn("Time", format="YYYY-MM-DD HH:mm"),
-        },
-    )
+    def _highlight_high_discrepancy(row: pd.Series) -> list[str]:
+        """Highlight rows where |discrepancy_pct| >= 15 (PRD Story 3)."""
+        n = len(row)
+        if "discrepancy_pct" not in row.index:
+            return [""] * n
+        disc = row["discrepancy_pct"]
+        if pd.notna(disc) and abs(float(disc)) >= 15.0:
+            return ["background-color: rgba(244, 67, 54, 0.2)"] * n
+        return [""] * n
+
+    if "discrepancy_pct" in display_df.columns and not display_df.empty:
+        st.dataframe(
+            display_df.style.apply(_highlight_high_discrepancy, axis=1),
+            use_container_width=True,
+            height=400,
+        )
+    else:
+        st.dataframe(display_df, use_container_width=True, height=400)
     st.caption(f"Showing {len(df)} calls. Use sidebar filters to narrow results.")
 else:
     st.info("No calls recorded yet. Start proxying API calls through Overage.")
