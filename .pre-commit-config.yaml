@@ -1,0 +1,85 @@
+# .pre-commit-config.yaml — Pre-commit hook configuration
+# Install: pre-commit install
+# Run all: pre-commit run --all-files
+# Reference: INSTRUCTIONS.md Section 13 (Secrets Management)
+
+# Minimum pre-commit version required
+minimum_pre_commit_version: "3.0.0"
+
+default_language_version:
+  python: python3.12
+
+repos:
+  # ---------------------------------------------------------------------------
+  # General file quality checks
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom YAML tags (GitHub Actions uses them)
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-added-large-files
+        args: [--maxkb=500]
+        # Exclude model weight files (tracked via Git LFS or external storage)
+        exclude: '\.(bin|safetensors|pt|onnx|gguf)$'
+      - id: no-commit-to-branch
+        # Prevent direct commits to main — force feature branches
+        args: [--branch, main]
+      - id: detect-private-key
+
+  # ---------------------------------------------------------------------------
+  # Ruff — lint + format (replaces flake8, black, isort)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      # Lint first, then format (order matters)
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # ---------------------------------------------------------------------------
+  # mypy — static type checking
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        args: [--strict, --install-types, --non-interactive]
+        # Only type-check the proxy source (not model/, dashboard/, scripts/)
+        files: ^proxy/
+        # mypy needs the project's dependencies installed to resolve types
+        additional_dependencies:
+          - fastapi>=0.115
+          - httpx>=0.28
+          - pydantic>=2.10
+          - pydantic-settings>=2.7
+          - sqlalchemy>=2.0
+          - structlog>=24.4
+          - sentry-sdk>=2.19
+          - types-requests
+
+  # ---------------------------------------------------------------------------
+  # detect-secrets — prevent accidental secret commits
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args:
+          - --baseline
+          - .secrets.baseline
+        # Exclude test fixtures and example files that may contain fake keys
+        exclude: |
+          (?x)^(
+            proxy/tests/fixtures/.*|
+            \.env\.example
+          )$
