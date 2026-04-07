@@ -211,6 +211,22 @@ def fetch_timeseries(url: str, key: str, params_key: str) -> list[dict[str, Any]
         return []
 
 
+@st.cache_data(ttl=60)
+def fetch_active_alerts(url: str, key: str, params_key: str) -> dict[str, Any]:
+    """Fetch active discrepancy alerts for a banner (PRD Story 9)."""
+    try:
+        resp = httpx.get(
+            f"{url}/v1/alerts",
+            headers=_headers(),
+            params={"status": "active"},
+            timeout=15.0,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except Exception:
+        return {"alerts": [], "total": 0}
+
+
 # Cache key includes filters so data refreshes when filters change
 _cache_key = (
     f"{api_url}|{api_key}|{date_range!s}|{provider_filter!s}|{model_filter!s}|{summary_group_by!s}"
@@ -231,6 +247,7 @@ with st.spinner("Fetching data from Overage API..."):
     summary = fetch_summary(api_url, api_key, _cache_key, summary_group_by)
     calls = fetch_calls(api_url, api_key, _cache_key)
     timeseries = fetch_timeseries(api_url, api_key, _cache_key)
+    alerts_payload = fetch_active_alerts(api_url, api_key, _cache_key)
 
 if summary is None:
     st.error(
@@ -246,6 +263,14 @@ if "overall" in summary:
     summary_groups = summary.get("groups", [])
 else:
     kpi = summary
+
+n_active_alerts = int(alerts_payload.get("total", 0) or 0)
+if n_active_alerts > 0:
+    st.warning(
+        f"You have **{n_active_alerts}** active discrepancy alert(s). "
+        "Inspect them with `GET /v1/alerts` or acknowledge via "
+        "`POST /v1/alerts/{{id}}/acknowledge`."
+    )
 
 # ---------------------------------------------------------------------------
 # Panel 1: Summary Metrics (KPIs)
