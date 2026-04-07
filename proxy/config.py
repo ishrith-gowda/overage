@@ -38,7 +38,7 @@ class Settings(BaseSettings):
         default="INFO",
         description="Logging level",
     )
-    proxy_host: str = Field(default="0.0.0.0", description="Proxy bind host")  # noqa: S104  # nosec B104 — intentional for Docker container binding
+    proxy_host: str = Field(default="0.0.0.0", description="Proxy bind host")  # nosec B104
     proxy_port: int = Field(default=8000, ge=1, le=65535, description="Proxy bind port")
     app_version: str = Field(default="0.1.0", description="Application version string")
 
