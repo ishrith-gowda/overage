@@ -231,6 +231,41 @@ async def sample_discrepancy_alert(
     return alert
 
 
+@pytest_asyncio.fixture
+async def stranger_user(db_session: AsyncSession) -> User:
+    """A second user (no API key fixture) for cross-tenant alert tests."""
+    user = User(
+        email="stranger@overage.dev",
+        name="Stranger",
+        password_hash=hashlib.sha256(b"other-password").hexdigest(),
+    )
+    db_session.add(user)
+    await db_session.flush()
+    return user
+
+
+@pytest_asyncio.fixture
+async def stranger_discrepancy_alert(
+    db_session: AsyncSession, stranger_user: User
+) -> DiscrepancyAlert:
+    """Active alert belonging to ``stranger_user`` (not ``test_api_key``'s user)."""
+    now = datetime.now(tz=UTC)
+    alert = DiscrepancyAlert(
+        user_id=stranger_user.id,
+        window_start=now - timedelta(days=2),
+        window_end=now - timedelta(days=1),
+        call_count=5,
+        aggregate_discrepancy_pct=30.0,
+        dollar_impact=1.0,
+        confidence_level="low",
+        threshold_pct=15.0,
+        alert_status="active",
+    )
+    db_session.add(alert)
+    await db_session.flush()
+    return alert
+
+
 # ---------------------------------------------------------------------------
 # Mock response factories
 # ---------------------------------------------------------------------------
