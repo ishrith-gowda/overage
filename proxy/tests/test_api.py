@@ -126,6 +126,32 @@ class TestCallsEndpoints:
         assert call["provider"] == "openai"
         assert call["model"] == "o3"
         assert call["reported_reasoning_tokens"] == 10000
+        assert call["estimated_reasoning_tokens"] is None
+        assert call["discrepancy_pct"] is None
+
+    @pytest.mark.asyncio
+    async def test_list_calls_includes_estimation_summary_when_present(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        sample_call_log: APICallLog,
+        sample_estimation: EstimationResult,
+        db_session: Any,
+    ) -> None:
+        """GET /v1/calls includes estimated tokens and discrepancy when estimation exists."""
+        await db_session.commit()
+
+        response = await client.get(
+            "/v1/calls",
+            headers={"X-API-Key": test_api_key},
+        )
+
+        assert response.status_code == 200
+        call = response.json()["calls"][0]
+        assert call["estimated_reasoning_tokens"] == sample_estimation.combined_estimated_tokens
+        assert call["discrepancy_pct"] == round(sample_estimation.discrepancy_pct, 4)
+        assert call["timing_r_squared"] == sample_estimation.timing_r_squared
+        assert call["signals_agree"] is sample_estimation.signals_agree
 
     @pytest.mark.asyncio
     async def test_get_call_detail_not_found_returns_404(
