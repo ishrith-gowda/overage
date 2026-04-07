@@ -68,7 +68,12 @@ jobs:
   trivy:
     name: Container Scan
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # PRs: catch Dockerfile regressions before merge. Main push + schedule: ongoing CVE signal.
+    if: >-
+      github.event_name == 'pull_request'
+      || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      || github.event_name == 'schedule'
+      || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
