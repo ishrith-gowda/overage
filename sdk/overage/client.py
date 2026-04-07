@@ -142,6 +142,24 @@ class OverageClient:
         resp.raise_for_status()
         return resp.json()
 
+    def download_audit_report(self, start_date: str, end_date: str) -> bytes:
+        """Download the PDF audit report for a billing period (PRD Story 6).
+
+        Args:
+            start_date: Inclusive period start ``YYYY-MM-DD`` (UTC).
+            end_date: Inclusive period end ``YYYY-MM-DD`` (UTC).
+
+        Returns:
+            Raw ``application/pdf`` bytes.
+        """
+        resp = self._http.get(
+            "/v1/report",
+            params={"start_date": start_date, "end_date": end_date},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        return resp.content
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
