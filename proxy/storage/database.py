@@ -62,6 +62,7 @@ def init_engine(database_url: str | None = None) -> AsyncEngine:
         **engine_kwargs,
     )
     if url.startswith("sqlite"):
+
         @event.listens_for(_engine.sync_engine, "connect")
         def _set_sqlite_pragma(dbapi_conn: Any, _rec: Any) -> None:
             cursor = dbapi_conn.cursor()
