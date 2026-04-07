@@ -129,6 +129,19 @@ class OverageClient:
         resp.raise_for_status()
         return resp.json()
 
+    def acknowledge_alert(self, alert_id: int) -> dict[str, Any]:
+        """Acknowledge a discrepancy alert (idempotent).
+
+        Args:
+            alert_id: Database id of the alert row.
+
+        Returns:
+            Serialized ``DiscrepancyAlert`` after update.
+        """
+        resp = self._http.post(f"/v1/alerts/{alert_id}/acknowledge")
+        resp.raise_for_status()
+        return resp.json()
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------

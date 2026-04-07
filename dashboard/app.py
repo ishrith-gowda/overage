@@ -114,6 +114,13 @@ with st.sidebar:
         help="Leave empty for all models",
     )
 
+    summary_group_by = st.selectbox(
+        "Summary breakdown chart",
+        options=[None, "model", "provider", "provider_model"],
+        format_func=lambda x: "Overall only" if x is None else str(x).replace("_", " + "),
+        help="Uses GET /v1/summary?group_by=… for per-group bars (PRD Story 8).",
+    )
+
     st.divider()
     auto_refresh = st.toggle("Auto-refresh (30s)", value=False)
     if auto_refresh:
@@ -147,13 +154,21 @@ def _params() -> dict[str, str]:
 
 
 @st.cache_data(ttl=30 if auto_refresh else 300)
-def fetch_summary(url: str, key: str, params_key: str) -> dict[str, Any] | None:
-    """Fetch aggregate summary stats from the API."""
+def fetch_summary(
+    url: str,
+    key: str,
+    params_key: str,
+    group_by: str | None,
+) -> dict[str, Any] | None:
+    """Fetch aggregate summary from the API; optional ``group_by`` for grouped breakdown."""
     try:
+        params = {**_params()}
+        if group_by:
+            params["group_by"] = group_by
         resp = httpx.get(
             f"{url}/v1/summary",
             headers=_headers(),
-            params=_params(),
+            params=params,
             timeout=10.0,
         )
         resp.raise_for_status()
@@ -197,7 +212,9 @@ def fetch_timeseries(url: str, key: str, params_key: str) -> list[dict[str, Any]
 
 
 # Cache key includes filters so data refreshes when filters change
-_cache_key = f"{api_url}|{api_key}|{date_range!s}|{provider_filter!s}|{model_filter!s}"
+_cache_key = (
+    f"{api_url}|{api_key}|{date_range!s}|{provider_filter!s}|{model_filter!s}|{summary_group_by!s}"
+)
 
 # ---------------------------------------------------------------------------
 # Fetch data
@@ -211,7 +228,7 @@ if not api_key:
     st.stop()
 
 with st.spinner("Fetching data from Overage API..."):
-    summary = fetch_summary(api_url, api_key, _cache_key)
+    summary = fetch_summary(api_url, api_key, _cache_key, summary_group_by)
     calls = fetch_calls(api_url, api_key, _cache_key)
     timeseries = fetch_timeseries(api_url, api_key, _cache_key)
 
@@ -222,6 +239,14 @@ if summary is None:
     )
     st.stop()
 
+# Flat summary vs GET /v1/summary?group_by=… (overall + groups)
+summary_groups: list[dict[str, Any]] = []
+if "overall" in summary:
+    kpi: dict[str, Any] = summary["overall"]
+    summary_groups = summary.get("groups", [])
+else:
+    kpi = summary
+
 # ---------------------------------------------------------------------------
 # Panel 1: Summary Metrics (KPIs)
 # ---------------------------------------------------------------------------
@@ -231,22 +256,43 @@ st.header("📊 Summary")
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 with col1:
-    st.metric("Total Calls", f"{summary.get('total_calls', 0):,}")
+    st.metric("Total Calls", f"{kpi.get('total_calls', 0):,}")
 with col2:
-    reported = summary.get("total_reported_reasoning_tokens", 0)
+    reported = kpi.get("total_reported_reasoning_tokens", 0)
     st.metric("Reported Tokens", f"{reported:,}")
 with col3:
-    estimated = summary.get("total_estimated_reasoning_tokens", 0)
+    estimated = kpi.get("total_estimated_reasoning_tokens", 0)
     st.metric("Estimated Tokens", f"{estimated:,}")
 with col4:
-    disc = summary.get("aggregate_discrepancy_pct", 0)
+    disc = kpi.get("aggregate_discrepancy_pct", 0)
     st.metric("Discrepancy", f"{disc:+.1f}%", delta=f"{disc:+.1f}%", delta_color="inverse")
 with col5:
-    dollars = summary.get("total_dollar_impact", 0)
+    dollars = kpi.get("total_dollar_impact", 0)
     st.metric("$ Impact", f"${dollars:,.2f}")
 with col6:
-    honoring = summary.get("honoring_rate_pct", 0)
+    honoring = kpi.get("honoring_rate_pct", 0)
     st.metric("Honoring Rate", f"{honoring:.1f}%")
+
+if summary_groups:
+    st.subheader("Discrepancy by group")
+    gdf = pd.DataFrame(summary_groups)
+    if not gdf.empty and "group_key" in gdf.columns:
+        fig_g = px.bar(
+            gdf.sort_values("aggregate_discrepancy_pct", ascending=False),
+            x="group_key",
+            y="aggregate_discrepancy_pct",
+            color="low_confidence",
+            title="Aggregate discrepancy % (per group)",
+            labels={
+                "group_key": "Group",
+                "aggregate_discrepancy_pct": "Discrepancy %",
+                "low_confidence": "Low confidence (<10 calls)",
+            },
+            template="plotly_dark",
+        )
+        fig_g.update_layout(height=380, xaxis_tickangle=-35)
+        st.plotly_chart(fig_g, use_container_width=True)
+        st.caption("Groups with fewer than 10 calls are flagged as low confidence by the API.")
 
 st.divider()
 
@@ -468,7 +514,7 @@ with calc_col2:
     st.dataframe(scenario_df, use_container_width=True, hide_index=True)
 
     # Highlight the actual observed discrepancy
-    actual_disc = abs(summary.get("aggregate_discrepancy_pct", 0))
+    actual_disc = abs(kpi.get("aggregate_discrepancy_pct", 0))
     if actual_disc > 0:
         actual_monthly = reasoning_spend * (actual_disc / 100.0)
         st.success(
