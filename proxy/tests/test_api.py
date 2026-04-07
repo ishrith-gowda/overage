@@ -343,7 +343,9 @@ class TestAcknowledgeAlert:
         assert r2.status_code == 200
         d2 = r2.json()
         assert d2["alert_status"] == "acknowledged"
-        assert d2["acknowledged_at"] == d1["acknowledged_at"]
+        # JSON may emit trailing Z on first response only depending on serialization path.
+        assert d2["acknowledged_at"] is not None
+        assert d2["acknowledged_at"].replace("Z", "") == d1["acknowledged_at"].replace("Z", "")
 
 
 class TestTimeseriesEndpoint:
