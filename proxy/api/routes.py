@@ -70,6 +70,13 @@ def set_estimators(
     responses={401: {"model": ErrorResponse}, 502: {"model": ErrorResponse}},
     summary="Proxy an LLM API call",
 )
+@router.post(
+    "/proxy/{provider_name}/chat/completions",
+    response_model=None,
+    responses={401: {"model": ErrorResponse}, 502: {"model": ErrorResponse}},
+    summary="OpenAI-compatible path (drop-in base_url for the OpenAI SDK)",
+    include_in_schema=False,
+)
 async def proxy_request(
     provider_name: str,
     request: Request,
