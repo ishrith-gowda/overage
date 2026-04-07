@@ -68,7 +68,7 @@ def _configure_logging() -> None:
             ),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
-            structlog._log_levels.NAME_TO_LEVEL[settings.log_level.lower()]  # type: ignore[attr-defined]
+            structlog._log_levels.NAME_TO_LEVEL[settings.log_level.lower()]
         ),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
