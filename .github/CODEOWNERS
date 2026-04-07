@@ -1,0 +1,13 @@
+# Overage — code ownership
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for all files unless overridden below.
+* @ishrith-gowda
+
+# Proxy service (FastAPI, providers, estimation, storage).
+/proxy/ @ishrith-gowda
+
+# GitHub workflows, issue templates, and repo automation.
+/.github/ @ishrith-gowda
+
+# Optional: add /dashboard/ or /sdk/ entries when secondary owners are defined.
