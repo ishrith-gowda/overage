@@ -1,0 +1,75 @@
+---
+description: Python coding patterns for the Overage proxy codebase
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python Patterns
+
+## Error Handling
+
+```python
+# WRONG
+try:
+    result = await client.post(url, json=data)
+except Exception:
+    pass
+
+# CORRECT
+from proxy.exceptions import ProviderTimeoutError, ProviderAPIError
+try:
+    result = await client.post(url, json=data, timeout=timeout)
+except httpx.TimeoutException as exc:
+    raise ProviderTimeoutError(provider="openai", timeout_seconds=timeout) from exc
+except httpx.HTTPStatusError as exc:
+    raise ProviderAPIError(provider="openai", status_code=exc.response.status_code) from exc
+```
+
+## Logging
+
+```python
+# WRONG
+print(f"Processing call {call_id}")
+
+# CORRECT
+import structlog
+logger = structlog.get_logger(__name__)
+logger.info("processing_call", call_id=call_id, provider=provider)
+```
+
+## Type Annotations
+
+```python
+# WRONG
+def process(data, timeout):
+    ...
+
+# CORRECT
+async def process(data: dict[str, Any], timeout: float = 30.0) -> ProviderResponse:
+    ...
+```
+
+## FastAPI Endpoints
+
+```python
+@router.get("/endpoint", response_model=ResponseModel)
+async def my_endpoint(
+    current_user: Annotated[User, Depends(validate_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    param: Annotated[str | None, Query(description="Filter")] = None,
+) -> ResponseModel:
+    """Docstring explaining what this does."""
+    ...
+```
+
+## Config Values
+
+```python
+# WRONG
+BASE_URL = "https://api.openai.com"
+
+# CORRECT
+from proxy.config import get_settings
+settings = get_settings()
+url = settings.openai_base_url
+```

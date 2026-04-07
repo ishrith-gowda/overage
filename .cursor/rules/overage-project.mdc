@@ -1,0 +1,42 @@
+---
+description: Core Overage project context and coding standards. Provides the AI with full project understanding.
+alwaysApply: true
+---
+
+# Overage — Project Context
+
+Overage is an independent audit layer for hidden LLM reasoning token billing. It's a FastAPI reverse proxy that intercepts API calls to OpenAI/Anthropic, independently estimates reasoning token counts using ML (PALACE framework, LoRA-fine-tuned Qwen2.5-1.5B) and response timing analysis, then reports discrepancies in a dashboard.
+
+## Architecture
+
+Client App → Overage Proxy (FastAPI) → LLM Provider (OpenAI/Anthropic)
+                ↓ (async background task)
+        Estimation Pipeline (PALACE + Timing) → Database → Dashboard
+
+The proxy adds <10ms to the critical path. Estimation runs asynchronously.
+
+## Key Files
+
+- `INSTRUCTIONS.md` — Master reference for all coding patterns (READ THIS FIRST for any non-trivial task)
+- `PRD.md` — Product spec with data models, API contracts, acceptance criteria
+- `ARCHITECTURE.md` — System diagrams, technology decisions, data flow
+- `proxy/` — Core FastAPI proxy (the main codebase)
+- `dashboard/` — Streamlit dashboard
+- `model/` — ML training and evaluation
+- `sdk/` — Python SDK for users (`pip install overage`)
+
+## Stack
+
+Python 3.12, FastAPI, httpx, SQLAlchemy 2.0 async, Pydantic v2, structlog, Sentry, ruff, mypy strict, pytest
+
+## Critical Rules
+
+1. Type annotations on ALL function signatures (args + return). mypy strict.
+2. Google-style docstrings on all public functions.
+3. structlog for logging — NEVER use `print()`.
+4. Custom exception hierarchy in `proxy/exceptions.py` — never bare `except:`.
+5. All config via `proxy/config.py` (pydantic-settings) — never hardcode values.
+6. Async by default for I/O. Use `httpx.AsyncClient`, not `requests`.
+7. SQLAlchemy 2.0 async patterns — never raw SQL strings.
+8. Tests follow `test_<function>_<scenario>_<expected>` naming.
+9. Commits: all lowercase, single line only, no trailers (no `Made-with:`, `Co-authored-by:`, etc). Use `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `ci:`, `chore:`. One logical change per commit.
