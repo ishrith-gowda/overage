@@ -1,0 +1,5 @@
+# Local secrets — same as .gitignore; not repo source.
+.env
+.env.local
+.env.production
+.env.staging
