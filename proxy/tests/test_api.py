@@ -392,11 +392,12 @@ class TestReportEndpoint:
         self,
         client: httpx.AsyncClient,
         test_api_key: str,
-        sample_call_log,
-        sample_estimation,
+        sample_call_log: Any,
+        sample_estimation: Any,
         db_session: Any,
     ) -> None:
         """Returns application/pdf with PDF magic bytes and attachment disposition."""
+        pytest.importorskip("fpdf")
         await db_session.commit()
         from datetime import UTC, datetime, timedelta
 
