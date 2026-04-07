@@ -210,9 +210,7 @@ async def sample_estimation(
 
 
 @pytest_asyncio.fixture
-async def sample_discrepancy_alert(
-    db_session: AsyncSession, test_user: User
-) -> DiscrepancyAlert:
+async def sample_discrepancy_alert(db_session: AsyncSession, test_user: User) -> DiscrepancyAlert:
     """Create an active discrepancy alert for the test user."""
     now = datetime.now(tz=UTC)
     alert = DiscrepancyAlert(
