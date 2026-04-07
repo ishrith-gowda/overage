@@ -12,9 +12,9 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -29,9 +29,13 @@ from proxy.storage.models import (
     APIKey,
     APIKeyCreate,
     APIKeyRead,
+    DiscrepancyAlert,
+    DiscrepancyAlertRead,
     ErrorResponse,
     EstimationResult,
+    SummaryGroupRow,
     SummaryStats,
+    SummaryWithGroups,
     TimeseriesPoint,
     User,
     UserCreate,
@@ -266,17 +270,39 @@ async def get_call_detail(
 # ============================================================================
 
 
-@router.get("/summary", response_model=SummaryStats, summary="Aggregate discrepancy stats")
-async def get_summary(
-    current_user: Annotated[User, Depends(validate_api_key)],
-    session: Annotated[AsyncSession, Depends(get_db)],
-    provider: Annotated[str | None, Query()] = None,
-    model: Annotated[str | None, Query()] = None,
-    start_date: Annotated[date | None, Query()] = None,
-    end_date: Annotated[date | None, Query()] = None,
+def _call_filter_conditions(
+    user_id: int,
+    provider: str | None,
+    model: str | None,
+    start_date: date | None,
+    end_date: date | None,
+) -> list[Any]:
+    """Build WHERE fragments for API call queries (user + optional filters)."""
+    conds: list[Any] = [APICallLog.user_id == user_id]
+    if provider:
+        conds.append(APICallLog.provider == provider)
+    if model:
+        conds.append(APICallLog.model == model)
+    if start_date:
+        conds.append(
+            APICallLog.timestamp >= datetime.combine(start_date, datetime.min.time(), tzinfo=UTC)
+        )
+    if end_date:
+        conds.append(
+            APICallLog.timestamp <= datetime.combine(end_date, datetime.max.time(), tzinfo=UTC)
+        )
+    return conds
+
+
+async def _fetch_summary_stats(
+    session: AsyncSession,
+    user_id: int,
+    provider: str | None,
+    model: str | None,
+    start_date: date | None,
+    end_date: date | None,
 ) -> SummaryStats:
-    """Get aggregate statistics for the authenticated user."""
-    # Base query joining calls with estimations
+    """Compute aggregate SummaryStats for the given filters."""
     stmt = (
         select(
             func.count(APICallLog.id).label("total_calls"),
@@ -298,21 +324,8 @@ async def get_summary(
             ).label("honoring_count"),
         )
         .outerjoin(EstimationResult, APICallLog.id == EstimationResult.call_id)
-        .where(APICallLog.user_id == current_user.id)
+        .where(and_(*_call_filter_conditions(user_id, provider, model, start_date, end_date)))
     )
-
-    if provider:
-        stmt = stmt.where(APICallLog.provider == provider)
-    if model:
-        stmt = stmt.where(APICallLog.model == model)
-    if start_date:
-        stmt = stmt.where(
-            APICallLog.timestamp >= datetime.combine(start_date, datetime.min.time(), tzinfo=UTC)
-        )
-    if end_date:
-        stmt = stmt.where(
-            APICallLog.timestamp <= datetime.combine(end_date, datetime.max.time(), tzinfo=UTC)
-        )
 
     result = await session.execute(stmt)
     row = result.one()
@@ -337,6 +350,152 @@ async def get_summary(
         avg_discrepancy_pct=round(float(row.avg_discrepancy or 0), 2),
         honoring_rate_pct=round(honoring_rate, 2),
     )
+
+
+async def _fetch_summary_groups(
+    session: AsyncSession,
+    user_id: int,
+    group_by: str,
+    provider: str | None,
+    model: str | None,
+    start_date: date | None,
+    end_date: date | None,
+) -> list[SummaryGroupRow]:
+    """Grouped aggregates for Story 8 (provider, model, or provider+model)."""
+    filters = _call_filter_conditions(user_id, provider, model, start_date, end_date)
+    join = APICallLog.id == EstimationResult.call_id
+
+    agg = (
+        func.count(APICallLog.id).label("total_calls"),
+        func.sum(APICallLog.reported_reasoning_tokens).label("total_reported"),
+        func.sum(EstimationResult.combined_estimated_tokens).label("total_estimated"),
+        func.avg(EstimationResult.discrepancy_pct).label("avg_discrepancy"),
+        func.sum(EstimationResult.dollar_impact).label("total_dollars"),
+    )
+
+    if group_by == "provider":
+        stmt = (
+            select(APICallLog.provider, *agg)
+            .outerjoin(EstimationResult, join)
+            .where(and_(*filters))
+            .group_by(APICallLog.provider)
+            .order_by(APICallLog.provider)
+        )
+    elif group_by == "model":
+        stmt = (
+            select(APICallLog.model, *agg)
+            .outerjoin(EstimationResult, join)
+            .where(and_(*filters))
+            .group_by(APICallLog.model)
+            .order_by(APICallLog.model)
+        )
+    else:
+        stmt = (
+            select(APICallLog.provider, APICallLog.model, *agg)
+            .outerjoin(EstimationResult, join)
+            .where(and_(*filters))
+            .group_by(APICallLog.provider, APICallLog.model)
+            .order_by(APICallLog.provider, APICallLog.model)
+        )
+
+    result = await session.execute(stmt)
+    rows = result.all()
+    out: list[SummaryGroupRow] = []
+    for row in rows:
+        if group_by == "provider":
+            p, tc, trp, te, ad, td = (
+                row[0],
+                row[1],
+                row[2],
+                row[3],
+                row[4],
+                row[5],
+            )
+            gkey = str(p)
+            prov: str | None = str(p)
+            mdl: str | None = None
+        elif group_by == "model":
+            m, tc, trp, te, ad, td = row[0], row[1], row[2], row[3], row[4], row[5]
+            gkey = str(m)
+            prov = None
+            mdl = str(m)
+        else:
+            p, m, tc, trp, te, ad, td = row[0], row[1], row[2], row[3], row[4], row[5], row[6]
+            gkey = f"{p}::{m}"
+            prov = str(p)
+            mdl = str(m)
+
+        tc = int(tc or 0)
+        trp = int(trp or 0)
+        te = int(te or 0)
+        agg_pct = 0.0
+        if te > 0:
+            agg_pct = (trp - te) / te * 100.0
+
+        out.append(
+            SummaryGroupRow(
+                group_key=gkey,
+                provider=prov,
+                model=mdl,
+                call_count=tc,
+                total_reported_reasoning_tokens=trp,
+                total_estimated_reasoning_tokens=te,
+                aggregate_discrepancy_pct=round(agg_pct, 2),
+                avg_discrepancy_pct=round(float(ad or 0), 2),
+                total_dollar_impact=round(float(td or 0), 4),
+                low_confidence=tc < 10,
+            )
+        )
+    return out
+
+
+@router.get(
+    "/summary",
+    summary="Aggregate discrepancy stats (optional group_by for per-provider/model breakdown)",
+)
+async def get_summary(
+    current_user: Annotated[User, Depends(validate_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    provider: Annotated[str | None, Query()] = None,
+    model: Annotated[str | None, Query()] = None,
+    start_date: Annotated[date | None, Query()] = None,
+    end_date: Annotated[date | None, Query()] = None,
+    group_by: Annotated[
+        str | None,
+        Query(
+            description="If set: provider | model | provider_model (PRD Story 8). "
+            "Returns overall + groups."
+        ),
+    ] = None,
+) -> SummaryStats | SummaryWithGroups:
+    """Get aggregate statistics; optional ``group_by`` adds grouped breakdown rows."""
+    if group_by is not None and group_by not in ("provider", "model", "provider_model"):
+        raise HTTPException(
+            status_code=422,
+            detail="group_by must be one of: provider, model, provider_model",
+        )
+
+    overall = await _fetch_summary_stats(
+        session,
+        current_user.id,
+        provider,
+        model,
+        start_date,
+        end_date,
+    )
+    if group_by is None:
+        return overall
+
+    groups = await _fetch_summary_groups(
+        session,
+        current_user.id,
+        group_by,
+        provider,
+        model,
+        start_date,
+        end_date,
+    )
+    return SummaryWithGroups(overall=overall, groups=groups)
 
 
 @router.get("/summary/timeseries", summary="Daily time-series data")
@@ -383,6 +542,26 @@ async def get_timeseries(
     ]
 
     return {"data": points, "period": {"start_date": str(sd), "end_date": str(ed)}}
+
+
+@router.get("/alerts", summary="List discrepancy alerts for the current user")
+async def list_alerts(
+    current_user: Annotated[User, Depends(validate_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    status: Annotated[
+        str | None,
+        Query(description="Filter by alert_status: active | acknowledged | resolved | all"),
+    ] = "active",
+) -> dict[str, Any]:
+    """Return stored discrepancy alerts (PRD Story 9 data model; listing in MVP)."""
+    stmt = select(DiscrepancyAlert).where(DiscrepancyAlert.user_id == current_user.id)
+    if status and status != "all":
+        stmt = stmt.where(DiscrepancyAlert.alert_status == status)
+    stmt = stmt.order_by(DiscrepancyAlert.created_at.desc())
+    result = await session.execute(stmt)
+    alerts = result.scalars().all()
+    serialized = [DiscrepancyAlertRead.model_validate(a).model_dump(mode="json") for a in alerts]
+    return {"alerts": serialized, "total": len(serialized)}
 
 
 # ============================================================================

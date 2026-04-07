@@ -172,6 +172,47 @@ class TestSummaryEndpoint:
     """Tests for GET /v1/summary."""
 
     @pytest.mark.asyncio
+    async def test_summary_group_by_provider_returns_overall_and_groups(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        sample_call_log: APICallLog,
+        sample_estimation: EstimationResult,
+        db_session: Any,
+    ) -> None:
+        """group_by=provider returns SummaryWithGroups shape."""
+        await db_session.commit()
+
+        response = await client.get(
+            "/v1/summary",
+            headers={"X-API-Key": test_api_key},
+            params={"group_by": "provider"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "overall" in data
+        assert "groups" in data
+        assert data["overall"]["total_calls"] >= 1
+        assert len(data["groups"]) >= 1
+        assert data["groups"][0]["group_key"] == "openai"
+        assert data["groups"][0]["low_confidence"] is True
+
+    @pytest.mark.asyncio
+    async def test_summary_invalid_group_by_returns_422(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+    ) -> None:
+        """Invalid group_by returns 422."""
+        response = await client.get(
+            "/v1/summary",
+            headers={"X-API-Key": test_api_key},
+            params={"group_by": "nope"},
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
     async def test_summary_returns_zeros_for_new_user(
         self,
         client: httpx.AsyncClient,
@@ -209,6 +250,32 @@ class TestSummaryEndpoint:
         data = response.json()
         assert data["total_calls"] >= 1
         assert data["total_reported_reasoning_tokens"] > 0
+
+
+class TestAlertsEndpoint:
+    """Tests for GET /v1/alerts."""
+
+    @pytest.mark.asyncio
+    async def test_list_alerts_requires_auth(self, client: httpx.AsyncClient) -> None:
+        """GET /v1/alerts without API key returns 401."""
+        response = await client.get("/v1/alerts")
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_list_alerts_returns_empty_for_new_user(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+    ) -> None:
+        """No alerts stored yet returns empty list."""
+        response = await client.get(
+            "/v1/alerts",
+            headers={"X-API-Key": test_api_key},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["alerts"] == []
+        assert data["total"] == 0
 
 
 class TestTimeseriesEndpoint:

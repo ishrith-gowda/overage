@@ -207,6 +207,15 @@ curl http://localhost:8000/v1/calls \
 # Get aggregate summary
 curl http://localhost:8000/v1/summary \
   -H "X-API-Key: $OVERAGE_API_KEY"
+
+# Per-provider breakdown (Story 8): group_by=provider | model | provider_model
+curl "http://localhost:8000/v1/summary?group_by=provider" \
+  -H "X-API-Key: $OVERAGE_API_KEY"
+# Response: { "overall": { ... same fields as flat summary ... }, "groups": [ ... ] }
+
+# Discrepancy alerts (stored rows; status=all|active|acknowledged|resolved)
+curl "http://localhost:8000/v1/alerts?status=active" \
+  -H "X-API-Key: $OVERAGE_API_KEY"
 ```
 
 ## Dashboard
