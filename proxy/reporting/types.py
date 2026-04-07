@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from typing import TYPE_CHECKING
 
-from proxy.storage.models import SummaryGroupRow, SummaryStats, TimeseriesPoint
+if TYPE_CHECKING:
+    from datetime import date
+
+    from proxy.storage.models import SummaryGroupRow, SummaryStats, TimeseriesPoint
 
 
 @dataclass(frozen=True)
