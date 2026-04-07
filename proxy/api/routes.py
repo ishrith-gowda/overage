@@ -13,7 +13,7 @@ from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -542,6 +542,48 @@ async def get_timeseries(
     ]
 
     return {"data": points, "period": {"start_date": str(sd), "end_date": str(ed)}}
+
+
+@router.get("/report", summary="Download PDF audit report for a date range (PRD Story 6)")
+async def get_audit_report(
+    current_user: Annotated[User, Depends(validate_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    start_date: Annotated[date, Query(description="Period start (inclusive, UTC)")],
+    end_date: Annotated[date, Query(description="Period end (inclusive, UTC)")],
+) -> Response:
+    """Generate a branded PDF with aggregates, breakdowns, top calls, and a time-series chart."""
+    if end_date < start_date:
+        raise HTTPException(status_code=422, detail="end_date must be on or after start_date")
+
+    max_days = 366
+    if (end_date - start_date).days > max_days:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Date range must not exceed {max_days} days",
+        )
+
+    from proxy.reporting.data import load_audit_report_bundle
+    from proxy.reporting.pdf_audit import render_audit_pdf
+
+    uid = current_user.id
+    user_label = current_user.email or f"user_{uid}"
+    bundle = await load_audit_report_bundle(session, uid, user_label, start_date, end_date)
+    pdf_bytes = render_audit_pdf(bundle)
+    filename = f"overage-audit-{start_date}-{end_date}.pdf"
+
+    logger.info(
+        "audit_report_generated",
+        user_id=current_user.id,
+        start_date=str(start_date),
+        end_date=str(end_date),
+        total_calls=bundle.overall.total_calls,
+    )
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/alerts", summary="List discrepancy alerts for the current user")
