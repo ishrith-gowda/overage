@@ -220,6 +220,10 @@ curl "http://localhost:8000/v1/alerts?status=active" \
 # Acknowledge an alert (replace ALERT_ID; idempotent)
 curl -X POST "http://localhost:8000/v1/alerts/ALERT_ID/acknowledge" \
   -H "X-API-Key: $OVERAGE_API_KEY"
+
+# PDF audit report for a date range (Story 6); writes to audit.pdf
+curl -o audit.pdf "http://localhost:8000/v1/report?start_date=2026-01-01&end_date=2026-01-31" \
+  -H "X-API-Key: $OVERAGE_API_KEY"
 ```
 
 ## Dashboard
