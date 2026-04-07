@@ -216,6 +216,10 @@ curl "http://localhost:8000/v1/summary?group_by=provider" \
 # Discrepancy alerts (stored rows; status=all|active|acknowledged|resolved)
 curl "http://localhost:8000/v1/alerts?status=active" \
   -H "X-API-Key: $OVERAGE_API_KEY"
+
+# Acknowledge an alert (replace ALERT_ID; idempotent)
+curl -X POST "http://localhost:8000/v1/alerts/ALERT_ID/acknowledge" \
+  -H "X-API-Key: $OVERAGE_API_KEY"
 ```
 
 ## Dashboard
