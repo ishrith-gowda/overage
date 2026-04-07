@@ -8,13 +8,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import httpx
 import pytest
 
-from proxy.storage.models import DiscrepancyAlert
-
 if TYPE_CHECKING:
-    from proxy.storage.models import APICallLog, EstimationResult
+    import httpx
+
+    from proxy.storage.models import APICallLog, DiscrepancyAlert, EstimationResult
 
 
 class TestHealthEndpoint:
