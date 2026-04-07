@@ -398,10 +398,14 @@ class TestReportEndpoint:
     ) -> None:
         """Returns application/pdf with PDF magic bytes and attachment disposition."""
         await db_session.commit()
+        from datetime import UTC, datetime, timedelta
+
+        end_d = datetime.now(tz=UTC).date()
+        start_d = end_d - timedelta(days=30)
         response = await client.get(
             "/v1/report",
             headers={"X-API-Key": test_api_key},
-            params={"start_date": "2000-01-01", "end_date": "2099-12-31"},
+            params={"start_date": str(start_d), "end_date": str(end_d)},
         )
         assert response.status_code == 200
         ct = response.headers.get("content-type", "")
