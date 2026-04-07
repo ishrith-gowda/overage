@@ -347,6 +347,70 @@ class TestAcknowledgeAlert:
         assert d2["acknowledged_at"].replace("Z", "") == d1["acknowledged_at"].replace("Z", "")
 
 
+class TestReportEndpoint:
+    """Tests for GET /v1/report (PDF audit)."""
+
+    @pytest.mark.asyncio
+    async def test_report_requires_auth(self, client: httpx.AsyncClient) -> None:
+        """Missing API key returns 401."""
+        response = await client.get(
+            "/v1/report",
+            params={"start_date": "2026-01-01", "end_date": "2026-01-31"},
+        )
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_report_rejects_inverted_date_range(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+    ) -> None:
+        """end_date before start_date yields 422."""
+        response = await client.get(
+            "/v1/report",
+            headers={"X-API-Key": test_api_key},
+            params={"start_date": "2026-02-01", "end_date": "2026-01-01"},
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_report_rejects_range_over_one_year(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+    ) -> None:
+        """Range wider than 366 days yields 422."""
+        response = await client.get(
+            "/v1/report",
+            headers={"X-API-Key": test_api_key},
+            params={"start_date": "2024-01-01", "end_date": "2025-12-31"},
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_report_returns_pdf_bytes(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        sample_call_log,
+        sample_estimation,
+        db_session: Any,
+    ) -> None:
+        """Returns application/pdf with PDF magic bytes and attachment disposition."""
+        await db_session.commit()
+        response = await client.get(
+            "/v1/report",
+            headers={"X-API-Key": test_api_key},
+            params={"start_date": "2000-01-01", "end_date": "2099-12-31"},
+        )
+        assert response.status_code == 200
+        ct = response.headers.get("content-type", "")
+        assert "application/pdf" in ct
+        assert response.content[:4] == b"%PDF"
+        cd = response.headers.get("content-disposition", "")
+        assert "attachment" in cd.lower()
+
+
 class TestTimeseriesEndpoint:
     """Tests for GET /v1/summary/timeseries."""
 
