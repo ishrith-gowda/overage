@@ -8,7 +8,7 @@
 # ---------------------------------------------------------------------------
 # Variables
 # ---------------------------------------------------------------------------
-PYTHON   := python3
+PYTHON   := $(shell command -v python3.12 2>/dev/null || command -v python3 2>/dev/null || echo python3)
 SRC      := proxy
 TESTS    := proxy/tests
 DASH     := dashboard
@@ -36,10 +36,10 @@ install-dev: ## Install all dependencies (production + development)
 	COPYFILE_DISABLE=1 $(PYTHON) -m pip install -e ".[dev]"
 
 venv-fresh: ## Recreate .venv (copies not symlinks; copyfile_disable helps exfat/usb on macos)
-	rm -rf .venv
-	COPYFILE_DISABLE=1 $(PYTHON) -m venv --copies .venv
+	$(PYTHON) scripts/bootstrap_venv.py
 	COPYFILE_DISABLE=1 .venv/bin/pip install --upgrade pip setuptools wheel
 	COPYFILE_DISABLE=1 .venv/bin/pip install -e ".[dev]"
+	find .venv -name '._*' -type f -delete 2>/dev/null || true
 
 git-usb-clean: ## Delete macos appledouble ._ files under .git (fixes non-monotonic pack index on exfat)
 	find .git -name '._*' -type f -delete 2>/dev/null || true
