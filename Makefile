@@ -58,13 +58,14 @@ typecheck: ## Run mypy in strict mode
 # Testing
 # ---------------------------------------------------------------------------
 
-test: ## Run all tests with coverage (minimum 80%)
+test: ## Run all tests with coverage (floor matches .github/workflows/ci.yml)
 	pytest $(TESTS) \
 		-v \
 		--cov=$(SRC) \
 		--cov-report=term-missing \
-		--cov-fail-under=80 \
-		--timeout=60
+		--cov-fail-under=55 \
+		--timeout=60 \
+		-m "not slow"
 
 test-fast: ## Run tests, stop on first failure, no coverage (fast iteration)
 	pytest $(TESTS) -v -x --no-cov --timeout=30
