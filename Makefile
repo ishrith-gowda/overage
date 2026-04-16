@@ -18,7 +18,7 @@ DASH_PORT := 8501
 # ---------------------------------------------------------------------------
 # Phony targets (these are commands, not files)
 # ---------------------------------------------------------------------------
-.PHONY: install install-dev venv-fresh lint format typecheck test test-fast test-unit \
+.PHONY: install install-dev venv-fresh git-usb-clean lint format typecheck test test-fast test-unit \
         test-integration security run run-dashboard docker-up docker-down \
         docker-build migrate migrate-generate seed demo benchmark profile-tps report \
         clean pre-commit-install all check help
@@ -40,6 +40,9 @@ venv-fresh: ## Recreate .venv (copies not symlinks; copyfile_disable helps exfat
 	COPYFILE_DISABLE=1 $(PYTHON) -m venv --copies .venv
 	COPYFILE_DISABLE=1 .venv/bin/pip install --upgrade pip setuptools wheel
 	COPYFILE_DISABLE=1 .venv/bin/pip install -e ".[dev]"
+
+git-usb-clean: ## Delete macos appledouble ._ files under .git (fixes non-monotonic pack index on exfat)
+	find .git -name '._*' -type f -delete 2>/dev/null || true
 
 pre-commit-install: ## Install pre-commit hooks and run initial check
 	pre-commit install

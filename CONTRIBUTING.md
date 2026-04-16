@@ -52,6 +52,10 @@ make check  # Runs lint + typecheck + test + security
 
 If `make check` passes, you're ready to contribute.
 
+### Cloning or working on a USB / exFAT volume (macOS)
+
+macOS can drop AppleDouble `._*` files next to real files. They break Git pack indexes (`non-monotonic index .git/objects/pack/._pack-…`) and pip metadata (`Ignoring invalid distribution`). After any Finder copy onto the drive, run `make git-usb-clean` in the repo root, then `make venv-fresh` if the environment was corrupted.
+
 ---
 
 ## Branch Naming
