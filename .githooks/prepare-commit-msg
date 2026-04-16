@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# Strip IDE-injected trailers so messages stay single-line per project policy.
+# Enable: git config core.hooksPath .githooks
+msg=${1:-}
+[ -z "$msg" ] || [ ! -f "$msg" ] && exit 0
+tmp=$(mktemp)
+grep -v '^Made-with:' "$msg" | grep -v '^Co-authored-by:' >"$tmp" || true
+cmp -s "$msg" "$tmp" || mv "$tmp" "$msg"
+rm -f "$tmp"
+exit 0
