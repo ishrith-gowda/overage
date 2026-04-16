@@ -26,6 +26,9 @@ venv/
 ENV/
 env/
 
+# Pip cache colocated on slow/usb volumes (optional: export PIP_CACHE_DIR=.pip-cache)
+.pip-cache/
+
 # =============================================================================
 # Testing & Coverage
 # =============================================================================
