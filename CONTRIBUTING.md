@@ -21,13 +21,14 @@ git clone https://github.com/ishrith-gowda/overage.git
 cd overage
 
 # 2. Create and activate a virtual environment
-python3.12 -m venv .venv
+# Use --copies: exfat, some smb mounts, and usb sticks often break venv symlinks.
+python3.12 -m venv --copies .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # 3. Install all dependencies (production + development)
-make install-dev
-# If site-packages shows "Ignoring invalid distribution" or imports fail, run:
-# make venv-fresh   (prefer an internal/APFS disk; exfat/usb sticks can corrupt venvs)
+# COPYFILE_DISABLE=1 avoids macOS AppleDouble "._*" files beside wheels on removable media.
+COPYFILE_DISABLE=1 make install-dev
+# If pip still shows "Ignoring invalid distribution" or imports fail: make venv-fresh
 
 # 4. Install pre-commit hooks
 make pre-commit-install
