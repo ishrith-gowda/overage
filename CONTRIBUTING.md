@@ -30,6 +30,9 @@ make install-dev
 # 4. Install pre-commit hooks
 make pre-commit-install
 
+# 4b. Use repo git hooks (strips Made-with / Co-authored-by trailers from messages)
+git config core.hooksPath .githooks
+
 # 5. Copy environment template and configure
 cp .env.example .env
 # Edit .env with your API keys (optional — demo mode works without them)
@@ -134,7 +137,7 @@ Reviewers will check for:
 
 - **Correctness:** Does the code do what the PR description says?
 - **Type safety:** Are all functions fully annotated? Does `make typecheck` pass?
-- **Test coverage:** Are there tests for the new code? Is coverage >= 80%?
+- **Test coverage:** Are there tests for the new code? Does it meet the CI floor (see `ci.yml`)?
 - **Error handling:** Are exceptions caught specifically and logged with structlog?
 - **Performance:** Does the change impact proxy latency (<10ms critical path)?
 - **Security:** No hardcoded secrets, no raw SQL, no unsafe deserialization?
@@ -145,7 +148,7 @@ Reviewers will check for:
 
 ## Testing Requirements
 
-- Minimum **80% line coverage** on new code (enforced by CI)
+- Meet the **pytest-cov** floor in `.github/workflows/ci.yml` on `proxy/`; prefer higher on new modules.
 - Mock all external services (OpenAI, Anthropic, database for unit tests)
 - Follow the test naming convention: `test_<function>_<scenario>_<expected_result>`
 - Every test MUST contain at least one `assert` statement
