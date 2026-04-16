@@ -18,7 +18,7 @@ DASH_PORT := 8501
 # ---------------------------------------------------------------------------
 # Phony targets (these are commands, not files)
 # ---------------------------------------------------------------------------
-.PHONY: install install-dev lint format typecheck test test-fast test-unit \
+.PHONY: install install-dev venv-fresh lint format typecheck test test-fast test-unit \
         test-integration security run run-dashboard docker-up docker-down \
         docker-build migrate migrate-generate seed demo benchmark profile-tps report \
         clean pre-commit-install all check help
@@ -34,6 +34,12 @@ install: ## Install production dependencies
 install-dev: ## Install all dependencies (production + development)
 	$(PYTHON) -m pip install --upgrade pip setuptools wheel
 	$(PYTHON) -m pip install -e ".[dev]"
+
+venv-fresh: ## Recreate .venv from scratch (use on internal disk if usb copy is corrupted)
+	rm -rf .venv
+	$(PYTHON) -m venv .venv
+	.venv/bin/pip install --upgrade pip setuptools wheel
+	.venv/bin/pip install -e ".[dev]"
 
 pre-commit-install: ## Install pre-commit hooks and run initial check
 	pre-commit install

@@ -26,6 +26,8 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # 3. Install all dependencies (production + development)
 make install-dev
+# If site-packages shows "Ignoring invalid distribution" or imports fail, run:
+# make venv-fresh   (prefer an internal/APFS disk; exfat/usb sticks can corrupt venvs)
 
 # 4. Install pre-commit hooks
 make pre-commit-install
