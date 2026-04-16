@@ -28,18 +28,18 @@ DASH_PORT := 8501
 # ---------------------------------------------------------------------------
 
 install: ## Install production dependencies
-	$(PYTHON) -m pip install --upgrade pip setuptools wheel
-	$(PYTHON) -m pip install -e .
+	COPYFILE_DISABLE=1 $(PYTHON) -m pip install --upgrade pip setuptools wheel
+	COPYFILE_DISABLE=1 $(PYTHON) -m pip install -e .
 
 install-dev: ## Install all dependencies (production + development)
-	$(PYTHON) -m pip install --upgrade pip setuptools wheel
-	$(PYTHON) -m pip install -e ".[dev]"
+	COPYFILE_DISABLE=1 $(PYTHON) -m pip install --upgrade pip setuptools wheel
+	COPYFILE_DISABLE=1 $(PYTHON) -m pip install -e ".[dev]"
 
-venv-fresh: ## Recreate .venv from scratch (use on internal disk if usb copy is corrupted)
+venv-fresh: ## Recreate .venv (copies not symlinks; copyfile_disable helps exfat/usb on macos)
 	rm -rf .venv
-	$(PYTHON) -m venv .venv
-	.venv/bin/pip install --upgrade pip setuptools wheel
-	.venv/bin/pip install -e ".[dev]"
+	COPYFILE_DISABLE=1 $(PYTHON) -m venv --copies .venv
+	COPYFILE_DISABLE=1 .venv/bin/pip install --upgrade pip setuptools wheel
+	COPYFILE_DISABLE=1 .venv/bin/pip install -e ".[dev]"
 
 pre-commit-install: ## Install pre-commit hooks and run initial check
 	pre-commit install
