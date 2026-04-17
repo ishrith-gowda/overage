@@ -55,6 +55,32 @@ class TestAuthEndpoints:
         assert data["email"] == "new@test.com"
         assert data["name"] == "New User"
         assert "id" in data
+        assert "api_key" in data
+        assert str(data["api_key"]).startswith("ovg_live_")
+
+    @pytest.mark.asyncio
+    async def test_post_apikey_requires_auth(self, client: httpx.AsyncClient) -> None:
+        """POST /v1/auth/apikey without X-API-Key returns 401."""
+        response = await client.post("/v1/auth/apikey", json={"name": "extra"})
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_post_apikey_returns_new_key(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+    ) -> None:
+        """POST /v1/auth/apikey returns a new raw key once (Story 7)."""
+        response = await client.post(
+            "/v1/auth/apikey",
+            headers={"X-API-Key": test_api_key},
+            json={"name": "ci second key"},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["name"] == "ci second key"
+        assert data["key"].startswith("ovg_live_")
+        assert "created_at" in data
 
     @pytest.mark.asyncio
     async def test_register_duplicate_email_returns_409(self, client: httpx.AsyncClient) -> None:
