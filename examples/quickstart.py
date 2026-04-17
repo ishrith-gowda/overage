@@ -1,7 +1,7 @@
-"""Overage quickstart — audit your OpenAI reasoning-token billing in 1 line.
+"""Overage quickstart — route OpenAI through the proxy and read discrepancy data.
 
-Install dependencies first:
-    pip install overage openai
+Requires: ``pip install -e ".[dev]"`` from repo root (or ``overage`` + ``openai`` from PyPI),
+``OVERAGE_API_KEY`` (from ``POST /v1/auth/register`` or ``make demo``), and ``OPENAI_API_KEY``.
 """
 
 import os
@@ -34,13 +34,14 @@ def main() -> None:
     for key, value in summary.items():
         print(f"  {key}: {value}")
 
-    # 5. Browse individual call logs.
+    # 5. Browse individual call logs (GET /v1/calls → ``calls`` + ``total``).
     calls = overage.get_calls(limit=5)
-    print(f"\n=== Last {len(calls.get('records', []))} recorded calls ===")
-    for record in calls.get("records", []):
+    rows = calls.get("calls", [])
+    print(f"\n=== Last {len(rows)} recorded calls ===")
+    for record in rows:
         print(
-            f"  {record.get('model')}  billed={record.get('billed_tokens')}  "
-            f"observed={record.get('observed_tokens')}"
+            f"  {record.get('model')}  reported_reasoning={record.get('reported_reasoning_tokens')}  "
+            f"estimated={record.get('estimated_reasoning_tokens')}"
         )
 
     overage.close()
