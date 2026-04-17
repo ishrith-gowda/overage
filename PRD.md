@@ -196,11 +196,11 @@ Overage is the first independent audit layer for hidden LLM reasoning token bill
 **So that** I can evaluate Overage quickly without a long setup process.
 
 **Acceptance Criteria:**
-- [ ] POST `/v1/auth/register` creates a new user with email + password
-- [ ] POST `/v1/auth/apikey` generates a new API key (returned once, stored as hash)
-- [ ] API key is passed via `X-API-Key` header on all subsequent requests
-- [ ] README quickstart can be completed in under 5 minutes (timed by a person unfamiliar with the project)
-- [ ] No credit card or payment required for initial evaluation
+- [x] POST `/v1/auth/register` creates a new user with email + password
+- [x] POST `/v1/auth/apikey` generates a new API key (returned once, stored as hash)
+- [x] API key is passed via `X-API-Key` header on all subsequent requests
+- [x] README quickstart can be completed in under 5 minutes (timed by a person unfamiliar with the project)
+- [x] No credit card or payment required for initial evaluation
 
 **Priority:** P0
 **Sprint:** MVP

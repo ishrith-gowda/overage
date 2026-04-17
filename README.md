@@ -59,6 +59,34 @@ graph TB
 - Git
 - (Optional) An OpenAI or Anthropic API key for live proxying
 
+### Five-minute evaluation (Story 7)
+
+No credit card. Goal: **register → Overage API key → prove the API accepts you** in a few commands (timings vary by machine; use `python3.12` and a fast disk).
+
+```bash
+git clone https://github.com/ishrith-gowda/overage.git && cd overage
+python3.12 -m venv --copies .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+COPYFILE_DISABLE=1 make install-dev
+cp .env.example .env
+make run   # terminal A — wait until uvicorn is listening on :8000
+```
+
+In **terminal B**:
+
+```bash
+export BASE=http://localhost:8000
+# Register — save the returned api_key as OVERAGE_API_KEY (shown once).
+curl -sS -X POST "$BASE/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"eval@example.com","name":"Eval","password":"eval-pass-99"}'
+export OVERAGE_API_KEY='paste ovg_live_... here'
+
+curl -sS "$BASE/health"
+curl -sS -H "X-API-Key: $OVERAGE_API_KEY" "$BASE/v1/calls"
+```
+
+You should see `healthy` from `/health` and `calls` / `total` from `/v1/calls`. Optional: create another key with `POST /v1/auth/apikey` (see [docs/API.md](./docs/API.md)). On USB/exFAT volumes, prefer `make venv-fresh` and [CONTRIBUTING.md](./CONTRIBUTING.md) troubleshooting.
+
 ### Setup
 
 ```bash
@@ -66,13 +94,13 @@ graph TB
 git clone https://github.com/ishrith-gowda/overage.git
 cd overage
 
-# Create and activate virtual environment
-python -m venv .venv
+# Create and activate virtual environment (Makefile prefers python3.12 when installed)
+python3.12 -m venv --copies .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install the package in editable mode (required for `import proxy` and scripts)
-make install-dev
-# Equivalent: pip install -e ".[dev]"
+COPYFILE_DISABLE=1 make install-dev
+# Equivalent: COPYFILE_DISABLE=1 pip install -e ".[dev]"
 
 # Copy environment template and configure
 cp .env.example .env
