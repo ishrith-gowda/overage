@@ -39,10 +39,10 @@ def main() -> None:
     rows = calls.get("calls", [])
     print(f"\n=== Last {len(rows)} recorded calls ===")
     for record in rows:
-        print(
-            f"  {record.get('model')}  reported_reasoning={record.get('reported_reasoning_tokens')}  "
-            f"estimated={record.get('estimated_reasoning_tokens')}"
-        )
+        model = record.get("model")
+        reported = record.get("reported_reasoning_tokens")
+        estimated = record.get("estimated_reasoning_tokens")
+        print(f"  {model}  reported_reasoning={reported}  estimated={estimated}")
 
     overage.close()
 
