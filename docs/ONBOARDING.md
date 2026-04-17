@@ -2,6 +2,8 @@
 
 Quick path to try Overage as a **pilot** customer: send traffic through the proxy, authenticate, and review results in the dashboard.
 
+**Fastest local path:** follow **Five-minute evaluation (Story 7)** in the root [README.md](../README.md), then return here for SDK and dashboard steps.
+
 ## 1. Install the SDK
 
 Add the Overage Python package to the environment that calls LLM APIs (see the root **README.md** and `sdk/` for package name and version). Use the same Python version your team standardizes on for services that talk to OpenAI or Anthropic.
