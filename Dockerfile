@@ -26,7 +26,9 @@ RUN apt-get update && \
 
 # Create a virtual environment for clean dependency isolation
 RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Prefer wheels over sdist compiles on slim images (faster CI/prod builds).
+ENV PATH="/opt/venv/bin:$PATH" \
+    PIP_PREFER_BINARY=1
 
 # Install Python dependencies
 # Copy only dependency files first to maximize Docker layer caching.
