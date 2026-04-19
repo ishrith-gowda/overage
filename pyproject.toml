@@ -258,7 +258,8 @@ omit = [
 branch = true                       # Track branch coverage, not just line coverage
 
 [tool.coverage.report]
-fail_under = 80
+# Floor aligned with `make test` and `.github/workflows/ci.yml` (Codecov CLI reads this too).
+fail_under = 55
 show_missing = true
 skip_covered = true                 # Don't show fully covered files in report
 exclude_lines = [

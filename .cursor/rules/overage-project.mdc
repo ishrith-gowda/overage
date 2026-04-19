@@ -18,6 +18,7 @@ The proxy adds <10ms to the critical path. Estimation runs asynchronously.
 ## Key Files
 
 - `INSTRUCTIONS.md` — Master reference for all coding patterns (READ THIS FIRST for any non-trivial task)
+- `CONTRIBUTING.md` — PR workflow, `make check`, commit conventions, code review expectations (follow for every change)
 - `PRD.md` — Product spec with data models, API contracts, acceptance criteria
 - `ARCHITECTURE.md` — System diagrams, technology decisions, data flow
 - `proxy/` — Core FastAPI proxy (the main codebase)
@@ -40,3 +41,15 @@ Python 3.12, FastAPI, httpx, SQLAlchemy 2.0 async, Pydantic v2, structlog, Sentr
 7. SQLAlchemy 2.0 async patterns — never raw SQL strings.
 8. Tests follow `test_<function>_<scenario>_<expected>` naming.
 9. Commits: all lowercase, single line only, no trailers (no `Made-with:`, `Co-authored-by:`, etc). Use `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `ci:`, `chore:`. One logical change per commit.
+
+## Git workflow (mandatory)
+
+Follow **`CONTRIBUTING.md`** end to end. Do **not** push feature or doc changes directly to `main` unless the user explicitly orders an emergency bypass.
+
+1. `git checkout main && git pull` then `git checkout -b feat/...` or `fix/...` / `docs/...` (prefix per CONTRIBUTING).
+2. Implement; run **`make check`** (or at minimum lint, typecheck, tests per CI) before push.
+3. **`git push origin <branch>`** and **open a PR** to `main` using the repo template; link issues if applicable.
+4. Wait for **GitHub Actions** (and CodeQL / checks the repo requires) to pass; address review comments.
+5. Merge via the repo’s chosen strategy (e.g. squash per CONTRIBUTING); do not merge broken CI.
+
+Dependabot, security scans, and branch protection assume **PR-based** integration. Treat **`INSTRUCTIONS.md`** + **`CONTRIBUTING.md`** as binding for code style and process.

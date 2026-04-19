@@ -1,6 +1,8 @@
 # .github/workflows/ci.yml — Main CI pipeline
 # Runs on every PR and push to main. Jobs form a dependency chain:
 #   lint → typecheck → test (+ security in parallel) → docker-build
+# If lint fails, every job that needs lint (or needs a downstream job) is skipped
+# until the failure is fixed — that is normal GitHub Actions behavior, not "optional" CI.
 # Reference: INSTRUCTIONS.md Section 9 (Git Workflow)
 
 name: CI
@@ -115,15 +117,28 @@ jobs:
             --cov-report=xml:coverage.xml \
             --cov-fail-under=55 \
             --timeout=60 \
-            -m "not slow"
+            -m "not slow" \
+            --junitxml=junit.xml \
+            -o junit_family=legacy
 
+      # Upload on PR and main; use always() so uploads run when pytest fails (JUnit + partial cov).
       - name: Upload coverage to Codecov
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: codecov/codecov-action@v4
+        if: ${{ !cancelled() && always() }}
+        uses: codecov/codecov-action@v5
         with:
-          file: coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
           fail_ci_if_error: false
+          handle_no_reports_found: true
+
+      - name: Upload test results to Codecov (Test Analytics)
+        if: ${{ !cancelled() && always() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: junit.xml
+          fail_ci_if_error: false
+          handle_no_reports_found: true
 
   # -----------------------------------------------------------------------
   # Job 4: Security — bandit + safety (runs in parallel with test)
