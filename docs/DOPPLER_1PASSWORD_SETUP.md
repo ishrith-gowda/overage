@@ -209,11 +209,14 @@ Use this only if you standardize on 1Password as the single injector; otherwise 
 After `op signin`, create a **document** in your vault containing the current Doppler `dev` export:
 
 ```bash
-export OP_VAULT="Private"   # or your vault name
+op vault list
+export OP_VAULT="Personal"   # use the exact NAME column from the list (often "Personal", not "Private")
 ./scripts/backup_doppler_env_to_1password.sh
 ```
 
 This uses `doppler secrets download` and `op document create` — it does **not** print secret values.
+
+**If you see `isn't a vault in this account`:** the name must match **exactly** (including spaces and capitalization). Run `op vault list` and set `OP_VAULT` to the **NAME** shown — many accounts use **`Personal`** instead of **`Private`**.
 
 ---
 
@@ -230,6 +233,7 @@ This uses `doppler secrets download` and `op document create` — it does **not*
 |-------|-------------|
 | `doppler: command not found` | `brew install dopplerhq/cli/doppler` |
 | `op: command not found` | `brew install --cask 1password-cli` |
+| `"Private" isn't a vault` | Run `op vault list` — set `OP_VAULT` to the exact **NAME** (often **`Personal`**, not Private) |
 | Doppler wrong project | `doppler setup` again in repo root |
 | 1Password session expired | `eval $(op signin)` again |
 

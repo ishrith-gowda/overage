@@ -4,7 +4,8 @@
 # Prerequisites: `doppler` and `op` logged in; 1Password CLI 2.x.
 #
 # Usage:
-#   export OP_VAULT="Private"   # or your team vault name
+#   op vault list    # copy the exact NAME of the vault you want
+#   export OP_VAULT="Personal"   # example — must match your account (not always "Private")
 #   ./scripts/backup_doppler_env_to_1password.sh
 #
 # The script does not print secret values to stdout.
@@ -22,10 +23,22 @@ if ! command -v op >/dev/null 2>&1; then
   exit 1
 fi
 
-VAULT="${OP_VAULT:-Private}"
+VAULT="${OP_VAULT:-}"
 TITLE="${OP_ITEM_TITLE:-Overage — Doppler dev snapshot}"
 TMP="$(mktemp -t doppler-env)"
 trap 'rm -f "$TMP"' EXIT
+
+if [ -z "$VAULT" ]; then
+  echo "error: set OP_VAULT to a vault name from your account (see: op vault list)" >&2
+  op vault list
+  exit 1
+fi
+
+if ! op vault get "$VAULT" >/dev/null 2>&1; then
+  echo "error: no vault named \"$VAULT\". Names are case-sensitive. Vaults in this account:" >&2
+  op vault list
+  exit 1
+fi
 
 doppler secrets download --no-file --format env >"$TMP"
 op document create "$TMP" --vault "$VAULT" --title "$TITLE" >/dev/null
