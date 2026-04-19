@@ -180,8 +180,8 @@ jobs:
     name: Docker Build
     runs-on: ubuntu-latest
     needs: test
-    # Align with security container scan; cold pip layers can approach 45m.
-    timeout-minutes: 60
+    # Slim image still compiles heavy wheels on cold cache; 60m has timed out in practice.
+    timeout-minutes: 120
     # Runs after tests on every workflow trigger (PR and push to main).
     steps:
       - uses: actions/checkout@v4
