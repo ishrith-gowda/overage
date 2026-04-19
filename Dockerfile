@@ -33,9 +33,14 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Code changes won't invalidate the dependency layer.
 COPY pyproject.toml README.md ./
 COPY proxy/__init__.py proxy/__init__.py
-# Install production dependencies only (no dev/test deps)
+# Default: full image with PALACE (torch). CI passes INSTALL_ML=false for fast image checks.
+ARG INSTALL_ML=true
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir .
+    if [ "$INSTALL_ML" = "true" ]; then \
+      pip install --no-cache-dir ".[ml]"; \
+    else \
+      pip install --no-cache-dir .; \
+    fi
 
 # ---------------------------------------------------------------------------
 # Stage 2: Runtime — minimal image with only what's needed

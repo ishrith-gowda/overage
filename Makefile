@@ -33,15 +33,15 @@ install: ## Install production dependencies
 	COPYFILE_DISABLE=1 $(PYTHON) -m pip install --upgrade pip setuptools wheel
 	COPYFILE_DISABLE=1 $(PYTHON) -m pip install -e .
 
-install-dev: ## Install all dependencies (production + development)
+install-dev: ## Install all dependencies (production + development + ML stack)
 	COPYFILE_DISABLE=1 $(PYTHON) -m pip install --upgrade pip setuptools wheel
-	COPYFILE_DISABLE=1 $(PYTHON) -m pip install -e ".[dev]"
+	COPYFILE_DISABLE=1 $(PYTHON) -m pip install -e ".[dev,ml]"
 
 venv-fresh: ## Recreate .venv (copies not symlinks; copyfile_disable helps exfat/usb on macos)
 	$(PYTHON) scripts/bootstrap_venv.py
 	mkdir -p "$$HOME/.cache/overage-pip"
 	env COPYFILE_DISABLE=1 PIP_CACHE_DIR=$$HOME/.cache/overage-pip .venv/bin/pip install --upgrade pip setuptools wheel
-	env COPYFILE_DISABLE=1 PIP_CACHE_DIR=$$HOME/.cache/overage-pip .venv/bin/pip install -e ".[dev]"
+	env COPYFILE_DISABLE=1 PIP_CACHE_DIR=$$HOME/.cache/overage-pip .venv/bin/pip install -e ".[dev,ml]"
 	@if [ "$$(uname)" = "Darwin" ]; then dot_clean -m .venv 2>/dev/null || true; fi
 	find .venv -name '._*' -type f -delete 2>/dev/null || true
 

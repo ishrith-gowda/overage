@@ -31,6 +31,8 @@ jobs:
   deploy:
     name: Build & Deploy
     runs-on: ubuntu-latest
+    # Hard gate: only production branch (defense in depth if trigger config ever mis-fires).
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     # Only deploy if CI passed (this workflow triggers on push, CI also triggers)
     # We rely on branch protection rules requiring CI to pass before merge.
     permissions:
