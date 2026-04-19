@@ -14,8 +14,8 @@ This document tracks **infrastructure setup** for the Overage project: accounts,
 | Phase | Name | Goal | Status |
 |-------|------|------|--------|
 | **1** | Accounts & platforms | Register tools, credits, student/education plans | **Largely complete** (inventory below) |
-| **2** | Secrets & environment | Single source of truth for env vars; `.env` derived from vault; CI secrets | **Substantially complete** — Doppler `overage`/`dev` populated; `doppler.yaml` + Makefile; 1Password backup script (run `op signin` then `scripts/backup_doppler_env_to_1password.sh`) |
-| **3** | Domains & DNS | Canonical hostnames (API, dashboard, docs); Cloudflare routing | **Pending** |
+| **2** | Secrets & environment | Single source of truth for env vars; `.env` derived from vault; CI secrets | **Complete** (see § Phase 2 exit criteria) |
+| **3** | Domains & DNS | Canonical hostnames (API, dashboard, docs); Cloudflare routing | **Current** — start with § Phase 3 playbook |
 | **4** | Observability & product analytics | Sentry, PostHog, optional Datadog/New Relic — wired to non-prod first | **Pending** |
 | **5** | Data plane choice | Supabase Postgres (or other) for `DATABASE_URL`; align with PRD | **Pending** (CLI linking deferred until this phase) |
 | **6** | Deploy & CI alignment | DigitalOcean / Heroku / Vercel roles; staging vs prod; Codecov + GitHub Actions | **In progress** (Codecov, CI already in repo) |
@@ -50,17 +50,21 @@ Use this as a checklist only. **Do not** store secrets here.
 
 ---
 
-## Phase 2 — Secrets & environment (status)
+## Phase 2 — Secrets & environment (**complete**)
 
-Step-by-step: **[DOPPLER_1PASSWORD_SETUP.md](./DOPPLER_1PASSWORD_SETUP.md)**.
+Procedure reference: **[DOPPLER_1PASSWORD_SETUP.md](./DOPPLER_1PASSWORD_SETUP.md)**.
 
-**Done in repo:** committed **`doppler.yaml`** (`overage` / `dev`); **`Makefile`** targets `secrets-verify`, `check-doppler`, `run-doppler`, `sync-env-to-doppler`; **`scripts/backup_doppler_env_to_1password.sh`** for a 1Password document snapshot.
+### Phase 2 exit criteria (all satisfied)
 
-**Your remaining manual steps:**
+| Criterion | Evidence |
+|-----------|----------|
+| Doppler project + `dev` config holds app secrets | `overage` / `dev`; upload via `doppler secrets upload` / `make sync-env-to-doppler` |
+| Repo declares Doppler linkage | Committed **`doppler.yaml`** (no secrets) |
+| Local/dev commands can run with injected env | **`make secrets-verify`**, **`make check-doppler`**, **`make run-doppler`** |
+| 1Password backup of Doppler snapshot | Document **“Overage — Doppler dev snapshot”** in vault **Personal** (confirmed) |
+| CI upload token (verify in GitHub UI) | Repository → **Settings → Secrets and variables → Actions** — **`CODECOV_TOKEN`** present for Codecov uploads (add if missing; value lives only in GitHub) |
 
-1. **1Password backup:** `eval $(op signin)` then `export OP_VAULT=…` and run `./scripts/backup_doppler_env_to_1password.sh` (or mirror secrets manually in the app).
-2. **GitHub Actions:** ensure **`CODECOV_TOKEN`** (and any deploy tokens) exist under **Repository → Settings → Secrets**.
-3. Optional: document in 1Password (not in git) which credentials are **shared with research** vs **Overage-only**.
+Optional (nice-to-have): note in 1Password (not in git) which credentials are **shared with research** vs **Overage-only**.
 
 ### OpenAI key usage (policy)
 
@@ -70,13 +74,40 @@ Step-by-step: **[DOPPLER_1PASSWORD_SETUP.md](./DOPPLER_1PASSWORD_SETUP.md)**.
 
 ---
 
-## Phase 3 — Domains & DNS (after Phase 2)
+## Phase 3 — Domains & DNS (**current**)
 
-1. Choose **canonical** root for the product (e.g. `overage.dev` for marketing, `api.overage.dev` for API) — decision recorded in this section when made.
-2. Point DNS at Cloudflare (or registrar DNS) and configure TLS.
-3. Add allowed origins (`CORS_ORIGINS`) to match real dashboard URLs.
+**Goal:** one **canonical** public identity (apex + subdomains), DNS and TLS under control, and `CORS_ORIGINS` / future deploy URLs aligned.
+
+### Recommended shape (decide explicitly; edit this table when chosen)
+
+| Role | Example hostname | Notes |
+|------|------------------|--------|
+| **Apex / marketing** | `overage.dev` | Strong match to product; you already own it. |
+| **API (HTTPS)** | `api.overage.dev` | Reverse proxy / FastAPI later; not required for Phase 3 DNS-only. |
+| **Dashboard (optional)** | `app.overage.dev` or path on apex | Streamlit or static front later. |
+| **Docs / marketing** | `www.overage.dev` or apex | Optional; avoid duplicate content (pick apex **or** `www`). |
+
+You also own **`overage.me`** and **`overage.tech`** — use for **redirects** or **staging** later, or park until needed; **one** apex should be canonical for the product to avoid SEO and CORS sprawl.
+
+### Playbook (Cloudflare — you have an account)
+
+1. **Add the site** in [Cloudflare](https://dash.cloudflare.com) for the domain you will use first (e.g. `overage.dev`).
+2. **Nameservers:** At the registrar (name.com / Namecheap), replace the default NS with the **two Cloudflare nameservers** shown in the setup wizard. Wait for status **Active** (often minutes to a few hours).
+3. **DNS records (minimal):**
+   - **Apex:** `A` or **CNAME** to a placeholder (e.g. `192.0.2.1` or a parking target) until you have a real host; or use **CNAME flattening** per Cloudflare docs.
+   - **`api`:** add when you have a deployment target (Phase 6); can be a **CNAME** to your PaaS hostname later.
+4. **TLS:** Enable **Full (strict)** once origin has a valid certificate; until then **Flexible** is common for static-only origins (document what you chose).
+5. **Doppler:** When you have real HTTPS URLs, set `CORS_ORIGINS` / related env in **`dev`** (comma-separated origins, e.g. `https://app.overage.dev,https://overage.dev`).
+
+### Phase 3 exit criteria (before Phase 4)
+
+- [ ] **Canonical apex** chosen and written in this doc (table above filled).
+- [ ] **Cloudflare** active for that domain (nameservers delegated).
+- [ ] **DNS** documented (screenshot or export in `docs/` optional — **no** secrets).
+- [ ] **`CORS_ORIGINS`** updated in Doppler when first HTTPS origins exist.
 
 ---
+
 
 ## Phase 4 — Observability
 
@@ -117,3 +148,4 @@ Step-by-step: **[DOPPLER_1PASSWORD_SETUP.md](./DOPPLER_1PASSWORD_SETUP.md)**.
 | Date | Change |
 |------|--------|
 | 2026-04-17 | Initial phased inventory and next-step gates |
+| 2026-04-19 | Phase 2 marked complete; Phase 3 playbook expanded |
