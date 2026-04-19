@@ -62,7 +62,7 @@ Procedure reference: **[DOPPLER_1PASSWORD_SETUP.md](./DOPPLER_1PASSWORD_SETUP.md
 | Repo declares Doppler linkage | Committed **`doppler.yaml`** (no secrets) |
 | Local/dev commands can run with injected env | **`make secrets-verify`**, **`make check-doppler`**, **`make run-doppler`** |
 | 1Password backup of Doppler snapshot | Document **“Overage — Doppler dev snapshot”** in vault **Personal** (confirmed) |
-| CI upload token (verify in GitHub UI) | Repository → **Settings → Secrets and variables → Actions** — **`CODECOV_TOKEN`** present for Codecov uploads (add if missing; value lives only in GitHub) |
+| CI upload token | Add **`CODECOV_TOKEN`** under **Repository secrets** (see **[CODECOV.md](./CODECOV.md)** — activate repo in Codecov if **Deactivated**) |
 
 Optional (nice-to-have): note in 1Password (not in git) which credentials are **shared with research** vs **Overage-only**.
 

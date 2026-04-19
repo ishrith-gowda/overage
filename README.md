@@ -283,6 +283,7 @@ See [INSTRUCTIONS.md](./INSTRUCTIONS.md) for the complete environment variable r
 | Document | Description |
 |----------|-------------|
 | [INSTRUCTIONS.md](./INSTRUCTIONS.md) | Developer guide: coding standards, patterns, commands |
+| [docs/CODECOV.md](./docs/CODECOV.md) | Codecov: GitHub secret, activation, troubleshooting |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | System architecture, diagrams, technology decisions |
 | [PRD.md](./PRD.md) | Product requirements, user stories, data models, API contracts |
 | [.github/copilot-instructions.md](.github/copilot-instructions.md) | GitHub Copilot-specific patterns and templates |
