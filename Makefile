@@ -19,7 +19,8 @@ DASH_PORT := 8501
 # Phony targets (these are commands, not files)
 # ---------------------------------------------------------------------------
 .PHONY: install install-dev venv-fresh git-usb-clean lint format typecheck test test-fast test-unit \
-        test-integration security run run-dashboard docker-up docker-down \
+        test-integration security run run-dashboard run-doppler check-doppler secrets-verify sync-env-to-doppler \
+        docker-up docker-down \
         docker-build migrate migrate-generate seed demo benchmark profile-tps report \
         clean pre-commit-install all check help
 
@@ -113,6 +114,28 @@ run: ## Start the proxy server (port 8000, with hot reload)
 
 run-dashboard: ## Start the Streamlit dashboard (port 8501)
 	streamlit run $(DASH)/app.py --server.port $(DASH_PORT)
+
+# ---------------------------------------------------------------------------
+# Secrets (Doppler) — see docs/DOPPLER_1PASSWORD_SETUP.md and doppler.yaml
+# ---------------------------------------------------------------------------
+
+secrets-verify: ## Confirm Doppler CLI can inject env (requires doppler login + doppler.yaml)
+	@command -v doppler >/dev/null || (echo "Install Doppler: brew install dopplerhq/cli/doppler" && exit 1)
+	doppler run -- $(PYTHON) -c "import os; assert os.getenv('OVERAGE_ENV'), 'missing OVERAGE_ENV'; print('doppler ok:', os.getenv('OVERAGE_ENV'))"
+
+check-doppler: ## Run full make check with secrets from Doppler (overage/dev)
+	@command -v doppler >/dev/null || (echo "Install Doppler: brew install dopplerhq/cli/doppler" && exit 1)
+	doppler run -- $(MAKE) check
+
+run-doppler: ## Start proxy with env from Doppler
+	@command -v doppler >/dev/null || (echo "Install Doppler: brew install dopplerhq/cli/doppler" && exit 1)
+	doppler run -- $(MAKE) run
+
+sync-env-to-doppler: ## Upload local .env to Doppler dev config (use --silent; keep .env out of git)
+	@command -v doppler >/dev/null || (echo "Install Doppler: brew install dopplerhq/cli/doppler" && exit 1)
+	test -f .env || (echo "missing .env — copy from .env.example first" && exit 1)
+	doppler secrets upload .env --silent
+	@echo "Uploaded .env to Doppler (silent)."
 
 # ---------------------------------------------------------------------------
 # Docker
