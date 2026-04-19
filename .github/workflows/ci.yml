@@ -137,7 +137,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          report-type: test_results
+          report_type: test_results
           files: junit.xml
           fail_ci_if_error: false
           handle_no_reports_found: true
