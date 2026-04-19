@@ -20,6 +20,7 @@ DASH_PORT := 8501
 # ---------------------------------------------------------------------------
 .PHONY: install install-dev venv-fresh git-usb-clean lint format typecheck test test-fast test-unit \
         test-integration security run run-dashboard run-doppler check-doppler secrets-verify sync-env-to-doppler \
+        codecov-local github-secret-codecov \
         docker-up docker-down \
         docker-build migrate migrate-generate seed demo benchmark profile-tps report \
         clean pre-commit-install all check help
@@ -136,6 +137,15 @@ sync-env-to-doppler: ## Upload local .env to Doppler dev config (use --silent; k
 	test -f .env || (echo "missing .env — copy from .env.example first" && exit 1)
 	doppler secrets upload .env --silent
 	@echo "Uploaded .env to Doppler (silent)."
+
+codecov-local: ## Generate coverage.xml and upload via codecov-cli (requires CODECOV_TOKEN in env)
+	@chmod +x scripts/codecov_local_upload.sh
+	./scripts/codecov_local_upload.sh
+
+github-secret-codecov: ## Set GitHub Actions CODECOV_TOKEN from env (requires gh + CODECOV_TOKEN)
+	@command -v gh >/dev/null || (echo "Install GitHub CLI: brew install gh" && exit 1)
+	@chmod +x scripts/github_secret_codecov.sh
+	./scripts/github_secret_codecov.sh
 
 # ---------------------------------------------------------------------------
 # Docker

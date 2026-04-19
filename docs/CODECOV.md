@@ -66,15 +66,37 @@ You can add a root **`codecov.yml`** in git for coverage thresholds, PR comments
 
 ## Codecov CLI (local uploads)
 
-For manual uploads from your machine (optional):
+**Repo automation** (recommended):
 
 ```bash
-pip install codecov-cli
-# from repo root, with coverage.xml present:
-codecovcli upload-process -t "$CODECOV_TOKEN" -f coverage.xml
+# 1) One-time: export token from Codecov → Configuration → General (repository upload token)
+export CODECOV_TOKEN='...'
+
+# 2) Upload current tree (runs pytest → coverage.xml → codecov-cli)
+make codecov-local
+# same as: ./scripts/codecov_local_upload.sh
 ```
 
-Use the same **repository upload token** as `CODECOV_TOKEN`. Prefer **`doppler run`** or a local env var — never paste the token into git or chat.
+Optional: store **`CODECOV_TOKEN`** in Doppler (`dev` only) so you never export in shell:
+
+```bash
+doppler secrets set CODECOV_TOKEN="..." --config dev --silent
+doppler run -- ./scripts/codecov_local_upload.sh
+```
+
+**Note:** `codecov-cli` on PyPI pins `httpx` versions that **conflict** with Overage’s `httpx>=0.28`, so we **do not** install it into the project venv. The script downloads the **official static binary** into **`.codecov-cli/`** (gitignored) instead.
+
+### GitHub Actions secret from CLI
+
+If **`gh`** is logged in (`gh auth status`):
+
+```bash
+export CODECOV_TOKEN='...'   # same token as Codecov dashboard
+make github-secret-codecov
+# same as: ./scripts/github_secret_codecov.sh
+```
+
+Use the same **repository upload token** as in Codecov. Never paste it into git or chat.
 
 ## “Current bot: none” (PR comments)
 
