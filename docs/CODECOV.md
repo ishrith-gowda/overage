@@ -37,6 +37,20 @@ If the repo list shows **Deactivated** or uploads fail with a deactivation messa
 
 A deactivated repo **blocks uploads** until it is activated again.
 
+### List says “Deactivated” but Danger zone shows **Deactivate** (contradiction)
+
+**Meaning:** The **Danger zone** button is the reliable signal: **Deactivate** only appears when the repo is **currently active** for uploads. A **Deactivated** label on the **org/repo list** can be **stale**, a **sync lag** between GitHub and Codecov, or a **known UI bug** (Codecov community has reports of conflicting states after public/private toggles or GitHub App reinstalls).
+
+**What to do:**
+
+1. **Ignore the list badge** if uploads succeed and `Danger zone` shows **Deactivate**.
+2. **Hard refresh** the dashboard (or another browser) and clear cache for `codecov.io`.
+3. **Ensure `CODECOV_TOKEN`** is set in GitHub and **re-run CI** on `main` — a successful upload often **refreshes** the repo state.
+4. **Codecov → Organization / Account settings** → **Sync** GitHub / re-authorize the **Codecov GitHub App** if the org’s repo list is out of date.
+5. If uploads **fail** with “repository has been deactivated” even though you see **Deactivate**, open a ticket with **Codecov support** — they can **reset the repo flag** on their side (this happens with real deactivation bugs).
+
+Do **not** use **Erase repository** unless you intend to wipe Codecov-side history; it is unrelated to a simple “stuck label.”
+
 ## Fix: empty Coverage tab / “merge to default branch”
 
 Codecov’s **Coverage** overview often fills after:
