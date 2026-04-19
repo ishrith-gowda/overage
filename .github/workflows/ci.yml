@@ -1,6 +1,6 @@
 # .github/workflows/ci.yml — Main CI pipeline
-# Runs on every PR and push to main. Jobs form a dependency chain:
-#   lint → typecheck → test (+ security in parallel) → docker-build
+# Runs on every PR and push to main (plus weekly schedule). Jobs form a chain:
+#   lint → typecheck → test (+ bandit/safety in parallel) → docker-build (+ Trivy SARIF)
 # If lint fails, every job that needs lint (or needs a downstream job) is skipped
 # until the failure is fixed — that is normal GitHub Actions behavior, not "optional" CI.
 # Reference: INSTRUCTIONS.md Section 9 (Git Workflow)
@@ -12,6 +12,13 @@ on:
     branches: [main]
   push:
     branches: [main]
+  schedule:
+    # Weekly container CVE signal (same cadence as former Security workflow Trivy job).
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
 
 # Cancel in-progress runs for the same PR to save compute. Do not cancel
 # in-progress runs on main: rapid merges would otherwise mark older commits
@@ -187,8 +194,23 @@ jobs:
         with:
           context: .
           push: false
+          load: true
           tags: overage:ci-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
             INSTALL_ML=false
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: "overage:ci-${{ github.sha }}"
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"

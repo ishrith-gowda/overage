@@ -1,6 +1,8 @@
 # .github/workflows/security.yml — Security scanning pipeline
-# Runs CodeQL analysis, dependency review, and container scanning.
-# CodeQL runs on every push and on a weekly schedule (catches new CVE patterns).
+# Runs CodeQL analysis and dependency review. Container image scanning (Trivy) runs in
+# ci.yml immediately after Docker Build so the image is built once per run (parallel
+# Security+CI Docker builds previously hit 60m job timeouts). Branch protection should
+# require the CI "Docker Build" job, not a separate "Container Scan".
 # Reference: INSTRUCTIONS.md Section 13 (Secrets Management)
 
 name: Security
@@ -61,51 +63,3 @@ jobs:
           fail-on-severity: high
           # Allow specific advisories if we've assessed the risk
           # allow-advisories: GHSA-xxxx-yyyy-zzzz
-
-  # -----------------------------------------------------------------------
-  # Trivy — container image vulnerability scanning
-  # -----------------------------------------------------------------------
-  trivy:
-    name: Container Scan
-    runs-on: ubuntu-latest
-    # Cold builds without layer cache can exceed 40m; GHA cache + margin below.
-    timeout-minutes: 60
-    # PRs: catch Dockerfile regressions before merge. Main push + schedule: ongoing CVE signal.
-    if: >-
-      github.event_name == 'pull_request'
-      || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-      || github.event_name == 'schedule'
-      || github.event_name == 'workflow_dispatch'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Build Docker image for scanning
-        # Slim image (no torch) — fast PR scans; production images use INSTALL_ML=true.
-        # Same GHA layer cache pattern as ci.yml so PRs do not cold-build for 40m+.
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          push: false
-          load: true
-          tags: overage:scan
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            INSTALL_ML=false
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@v0.35.0
-        with:
-          image-ref: "overage:scan"
-          format: "sarif"
-          output: "trivy-results.sarif"
-          severity: "CRITICAL,HIGH"
-
-      - name: Upload Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: "trivy-results.sarif"
