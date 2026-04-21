@@ -1,0 +1,5 @@
+# Doppler project link (safe to commit — contains no secret values).
+# See docs/DOPPLER_1PASSWORD_SETUP.md
+setup:
+  project: overage
+  config: dev
