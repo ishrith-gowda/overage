@@ -39,8 +39,13 @@ COPY proxy/ ./proxy/
 # to install only core deps (no torch, fpdf, matplotlib) for fast, reliable builds.
 ARG INSTALL_ML=true
 ARG OVERAGE_DOCKER_MINIMAL=false
+# Install scientific stack as wheels *before* `pip install .` so pip never falls through to
+# multi-hour sdist compiles of numpy/scipy/scikit-learn on slim images (this caused ~45m+ hangs).
+# Specifiers match [project] dependencies in pyproject.toml.
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip setuptools wheel && \
+    pip install --only-binary=:all: \
+        "numpy>=2.1,<3" "scipy>=1.14,<2" "scikit-learn>=1.6,<2" && \
     if [ "$OVERAGE_DOCKER_MINIMAL" = "true" ]; then \
       pip install . ; \
     elif [ "$INSTALL_ML" = "true" ]; then \
