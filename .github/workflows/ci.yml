@@ -180,8 +180,8 @@ jobs:
     name: Docker Build
     runs-on: ubuntu-latest
     needs: test
-    # Slim image still compiles heavy wheels on cold cache; 60m has timed out in practice.
-    timeout-minutes: 120
+    # CI uses OVERAGE_DOCKER_MINIMAL (core deps only); allow margin for first pip layer cache.
+    timeout-minutes: 45
     # Runs after tests on every workflow trigger (PR and push to main).
     steps:
       - uses: actions/checkout@v4
@@ -200,8 +200,10 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             INSTALL_ML=false
+            OVERAGE_DOCKER_MINIMAL=true
 
       - name: Run Trivy vulnerability scanner
+        if: success()
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: "overage:ci-${{ github.sha }}"
@@ -210,7 +212,7 @@ jobs:
           severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy scan results to GitHub Security
+        if: success()
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
         with:
           sarif_file: "trivy-results.sarif"

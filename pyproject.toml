@@ -52,12 +52,14 @@ dependencies = [
     "scikit-learn>=1.6,<2.0",
     # --- Utilities ---
     "python-multipart>=0.0.18",   # FastAPI form/file upload support
-    # --- PDF audit reports (PRD Story 6) ---
-    "fpdf2>=2.8,<3.0",
-    "matplotlib>=3.9,<4.0",
 ]
 
 [project.optional-dependencies]
+# PDF audit reports (PRD Story 6) — also listed under dev for local tests; optional for slim CI images.
+reporting = [
+    "fpdf2>=2.8,<3.0",
+    "matplotlib>=3.9,<4.0",
+]
 # PALACE / LoRA inference — lazy-imported in proxy/estimation/palace.py; required for production Docker & ML work.
 ml = [
     "torch>=2.5,<3.0",
@@ -88,6 +90,8 @@ dev = [
     "streamlit>=1.41,<2.0",
     "plotly>=5.24,<6.0",
     "pandas>=2.2,<3.0",
+    "fpdf2>=2.8,<3.0",
+    "matplotlib>=3.9,<4.0",
 ]
 
 [project.urls]

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 # Dockerfile — Multi-stage production build for Overage proxy
 # Stage 1: Install dependencies in a builder image
 # Stage 2: Copy only what's needed into a slim runtime image
@@ -30,18 +31,22 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     PIP_PREFER_BINARY=1
 
-# Install Python dependencies
-# Copy only dependency files first to maximize Docker layer caching.
-# Code changes won't invalidate the dependency layer.
+# Full package tree: setuptools must see real sources (partial copy can hang "build wheel" in CI).
+# pyproject is copied first; proxy/ is a separate layer so dep-only edits still cache well.
 COPY pyproject.toml README.md ./
-COPY proxy/__init__.py proxy/__init__.py
-# Default: full image with PALACE (torch). CI passes INSTALL_ML=false for fast image checks.
+COPY proxy/ ./proxy/
+# Default: production image with PALACE + PDF reporting. CI passes OVERAGE_DOCKER_MINIMAL=true
+# to install only core deps (no torch, fpdf, matplotlib) for fast, reliable builds.
 ARG INSTALL_ML=true
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    if [ "$INSTALL_ML" = "true" ]; then \
-      pip install --no-cache-dir ".[ml]"; \
+ARG OVERAGE_DOCKER_MINIMAL=false
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip setuptools wheel && \
+    if [ "$OVERAGE_DOCKER_MINIMAL" = "true" ]; then \
+      pip install . ; \
+    elif [ "$INSTALL_ML" = "true" ]; then \
+      pip install ".[ml,reporting]"; \
     else \
-      pip install --no-cache-dir .; \
+      pip install ".[reporting]"; \
     fi
 
 # ---------------------------------------------------------------------------
