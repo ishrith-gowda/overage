@@ -23,6 +23,7 @@ DASH_PORT := 8501
         codecov-local github-secret-codecov \
         docker-up docker-down \
         docker-build migrate migrate-generate seed demo benchmark profile-tps report \
+        strip-trailers \
         clean pre-commit-install all check help
 
 # ---------------------------------------------------------------------------
@@ -47,6 +48,9 @@ venv-fresh: ## Recreate .venv (copies not symlinks; copyfile_disable helps exfat
 
 git-usb-clean: ## Delete macos appledouble ._ files under .git (fixes non-monotonic pack index on exfat)
 	find .git -name '._*' -type f -delete 2>/dev/null || true
+
+strip-trailers: ## Rewrite a commit range to drop forbidden trailers and bodies (interactive; does not push)
+	./scripts/strip_trailers.sh $(SINCE) $(REF)
 
 pre-commit-install: ## Install pre-commit hooks and run initial check
 	pre-commit install

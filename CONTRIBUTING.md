@@ -149,7 +149,24 @@ If you need to clean up multi-line dev commits before opening a PR, squash them 
 
 6. **Request review** (or self-merge if solo development with CI green).
 
-7. **Squash merge** into `main` (`gh pr merge <num> --squash`). The repo is configured so the merge commit subject = PR title and the body is BLANK; never pass `--body` or `--subject "<multi-line>"` to `gh pr merge`. Branch deletion is automatic.
+7. **Squash merge** into `main`:
+
+   ```bash
+   gh pr merge <num> --squash --subject "<exact PR title>" --body ""
+   ```
+
+   - Pass `--subject` and an empty `--body ""` explicitly. Repo settings (`squash_merge_commit_title=PR_TITLE`, `squash_merge_commit_message=BLANK`) cover the default case but the explicit form is the only one that *also* prevents GitHub from inheriting `Signed-off-by:` / `Co-authored-by:` trailers from Dependabot's source commits.
+   - **Do not** use `gh pr merge --auto` and **do not** click "Enable auto-merge" or "Update branch" in the GitHub UI. Both add `Co-authored-by: <whoever-clicked>` to the squash commit. Branch protection's `strict` flag is satisfied by `gh pr update-branch` from CLI; if dependabot's branch is stale ask `@dependabot rebase` in a comment and wait, do not click Update.
+   - Branch deletion is automatic (`delete_branch_on_merge=true`).
+
+If a `Signed-off-by:` or `Co-authored-by:` trailer ever lands on `main` despite this process, scrub it:
+
+```bash
+make strip-trailers SINCE=<last-clean-sha> REF=main   # local rewrite, dry run-ish
+# … or, in the GitHub UI: Actions → "Strip Trailers" → Run workflow with confirm=YES
+```
+
+This is documented in `docs/ROADMAP.md` §7.6 and uses the safety tag `pre-rewrite-2026-05-10` as the recovery point.
 
 ---
 
