@@ -25,7 +25,7 @@ Next planned subtask: **7.6 — automated trailer-cleanup safeguard**.
 ### Phase 0 — Foundation and local runtime
 - **PR:** [#14](https://github.com/ishrith-gowda/overage/pull/14) · merged 2026-04-07
 - **PRD coverage:** Story 1 (proxy skeleton), Story 7 (quickstart) bootstrap.
-- **Outcome:** Repo skeleton, FastAPI scaffolding, local runtime, base CI.
+- **Outcome:** Repo skeleton, FastAPI scaffolding, local runtime, base CI. **Post-audit verification (this PR):** `make verify-python` enforces `requires-python >=3.12`; `proxy/tests/test_api.py` asserts `X-Request-ID`, unknown `X-API-Key` → 401, and header/body `request_id` parity on auth errors; CI runs **`foundation-quickstart`** (`scripts/verify_quickstart_budget.sh`: `pip install -e ".[dev]"` + `pytest proxy/tests/test_api.py` within 300s on `ubuntu-latest`); workflow and `make test` disable Datadog pytest autoload via `DD_TRACE_ENABLED=false`.
 - **Status:** done.
 
 ### Phase 1 — OpenAI SDK proxy path, tests, quickstart

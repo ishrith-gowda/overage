@@ -42,6 +42,11 @@ os.environ["OPENAI_API_KEY"] = ""
 os.environ["ANTHROPIC_API_KEY"] = ""
 os.environ["API_KEY_SECRET"] = "test-secret"
 os.environ["LOG_LEVEL"] = "WARNING"
+# Datadog's ddtrace can register pytest plugins and crash on interpreter exit (UnicodeDecodeError
+# reading site-packages metadata). Force off for the test process; `make test` also exports these
+# so they apply before the interpreter imports site-packages in fragile environments.
+os.environ["DD_TRACE_ENABLED"] = "false"
+os.environ["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
 
 
 # ---------------------------------------------------------------------------

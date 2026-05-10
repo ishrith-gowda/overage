@@ -87,6 +87,8 @@ curl -sS -H "X-API-Key: $OVERAGE_API_KEY" "$BASE/v1/calls"
 
 You should see `healthy` from `/health` and `calls` / `total` from `/v1/calls`. Optional: create another key with `POST /v1/auth/apikey` (see [docs/API.md](./docs/API.md)). On USB/exFAT volumes, prefer `make venv-fresh` and [CONTRIBUTING.md](./CONTRIBUTING.md) troubleshooting.
 
+**Machine-checked path (CI):** Pull requests run the **Foundation quickstart** job ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)): a fresh `pip install -e ".[dev]"` plus `pytest proxy/tests/test_api.py` must finish within **300 wall-clock seconds** on GitHub-hosted `ubuntu-latest` (`scripts/verify_quickstart_budget.sh`). That matches the minimal API surface for Story 7 without ML/PDF extras. Locally, `make verify-quickstart` runs the same script (network and disk dependent). A full `make install-dev` (torch, PDF stack) is slower on first install; use it when you need PALACE or report-generation tests.
+
 ### Setup
 
 ```bash
