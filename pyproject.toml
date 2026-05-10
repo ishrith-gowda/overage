@@ -41,7 +41,7 @@ dependencies = [
     # --- Data validation & settings ---
     "pydantic>=2.13.4,<3.0",
     "pydantic-settings>=2.7,<3.0",
-    "python-dotenv>=1.0,<2.0",
+    "python-dotenv>=1.2.2,<2.0",
     # --- Structured logging ---
     "structlog>=24.4,<26.0",
     # --- Error tracking ---
