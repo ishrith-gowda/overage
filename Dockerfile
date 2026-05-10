@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 # Dockerfile — Multi-stage production build for Overage proxy
 # Stage 1: Install dependencies in a builder image
 # Stage 2: Copy only what's needed into a slim runtime image
@@ -26,16 +27,39 @@ RUN apt-get update && \
 
 # Create a virtual environment for clean dependency isolation
 RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Prefer wheels over sdist compiles on slim images (faster CI/prod builds).
+ENV PATH="/opt/venv/bin:$PATH" \
+    PIP_PREFER_BINARY=1
 
-# Install Python dependencies
-# Copy only dependency files first to maximize Docker layer caching.
-# Code changes won't invalidate the dependency layer.
+# CRITICAL: scope the build to /build. Without WORKDIR, COPY targets `/` (root) and
+# `pip install .` later runs `setuptools.find_packages` from `/`, which os.walk()'s the
+# whole rootfs (incl. /opt/venv/lib/python3.12/site-packages/, /usr/, /var/) and
+# hangs "Getting requirements to build wheel" for >60 min on slim images.
+WORKDIR /build
+
+# pyproject is copied first; proxy/ is a separate layer so dep-only edits still cache well.
 COPY pyproject.toml README.md ./
-COPY proxy/__init__.py proxy/__init__.py
-# Install production dependencies only (no dev/test deps)
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir .
+COPY proxy/ ./proxy/
+# Default: production image with PALACE + PDF reporting. CI passes OVERAGE_DOCKER_MINIMAL=true
+# to install only core deps (no torch, fpdf, matplotlib) for fast, reliable builds.
+ARG INSTALL_ML=true
+ARG OVERAGE_DOCKER_MINIMAL=false
+# Install scientific stack as wheels *before* `pip install .` so pip never falls through to
+# multi-hour sdist compiles of numpy/scipy/scikit-learn on slim images.
+# `--no-build-isolation` reuses the venv (already has setuptools/wheel) — avoids spinning up a
+# second isolated build env per install (faster + simpler).
+# Specifiers match [project] dependencies in pyproject.toml.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip setuptools wheel && \
+    pip install --only-binary=:all: \
+        "numpy>=2.1,<3" "scipy>=1.14,<2" "scikit-learn>=1.6,<2" && \
+    if [ "$OVERAGE_DOCKER_MINIMAL" = "true" ]; then \
+      pip install --no-build-isolation . ; \
+    elif [ "$INSTALL_ML" = "true" ]; then \
+      pip install --no-build-isolation ".[ml,reporting]"; \
+    else \
+      pip install --no-build-isolation ".[reporting]"; \
+    fi
 
 # ---------------------------------------------------------------------------
 # Stage 2: Runtime — minimal image with only what's needed
