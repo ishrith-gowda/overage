@@ -200,6 +200,59 @@ class TestProxyAnthropicNonStreaming:
         mock_provider.forward_request.assert_awaited_once()
 
 
+class TestProxyAnthropicStreaming:
+    """Streaming Anthropic proxy path (Phase 2) with mocked upstream."""
+
+    @pytest.mark.asyncio
+    async def test_proxy_anthropic_streaming_returns_sse_with_overage_headers(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+    ) -> None:
+        """``StreamingResponse`` echoes chunks and Overage headers (mocked adapter)."""
+        prov_response = ProviderResponse(
+            provider="anthropic",
+            model="claude-sonnet-4-20250514",
+            raw_response={},
+            raw_usage={"input_tokens": 1, "output_tokens": 2, "thinking_tokens": 0},
+            input_tokens=1,
+            output_tokens=2,
+            reasoning_tokens=0,
+            total_latency_ms=4.0,
+            ttft_ms=0.8,
+            status_code=200,
+            is_streaming=True,
+        )
+        chunks = [b"event: message_start\ndata: {}\n\n", b"event: message_stop\ndata: {}\n\n"]
+        mock_provider = AsyncMock()
+        mock_provider.forward_streaming_request = AsyncMock(return_value=(prov_response, chunks))
+
+        with (
+            patch("proxy.api.routes.provider_registry.get", return_value=mock_provider),
+            patch("proxy.api.routes._record_and_estimate", new=AsyncMock()),
+        ):
+            response = await client.post(
+                "/v1/proxy/anthropic/v1/messages",
+                headers={
+                    "X-API-Key": test_api_key,
+                    "x-api-key": "sk-ant-test",
+                    "anthropic-version": "2023-06-01",
+                },
+                json={
+                    "model": "claude-sonnet-4-20250514",
+                    "max_tokens": 128,
+                    "messages": [{"role": "user", "content": "stream"}],
+                    "stream": True,
+                },
+            )
+
+        assert response.status_code == 200
+        assert "event-stream" in (response.headers.get("content-type") or "").lower()
+        _assert_overage_proxy_headers(response, streaming=True)
+        assert b"message_start" in response.content or b"data:" in response.content
+        mock_provider.forward_streaming_request.assert_awaited_once()
+
+
 class TestProxyErrors:
     """Error responses for invalid proxy targets."""
 

@@ -214,6 +214,8 @@ message = client.messages.create(
 
 Install: `pip install anthropic`.
 
+**Live verification (not in CI):** With `make run` and valid `X-API-Key` + `ANTHROPIC_API_KEY`, run the curl block above and/or the SDK snippet; both should return Anthropic-shaped JSON through the proxy. CI covers the same paths with mocked providers in `proxy/tests/test_anthropic_provider.py` and `proxy/tests/test_proxy_route.py`.
+
 ### Latency benchmark (wire RTT)
 
 With the proxy running (`make run` in another terminal):

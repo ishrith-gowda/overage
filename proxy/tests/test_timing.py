@@ -26,13 +26,46 @@ class TestDefaultTPSRates:
             ("o3", 55.0),
             ("o4-mini", 80.0),
             ("o3-mini", 90.0),
+            ("o1", 50.0),
+            ("o1-mini", 75.0),
             ("claude-sonnet-4-20250514", 65.0),
+            ("claude-3-5-sonnet-20241022", 65.0),
+            ("claude-3-opus-20240229", 40.0),
         ],
-        ids=["openai-o3", "openai-o4-mini", "openai-o3-mini", "anthropic-sonnet"],
+        ids=[
+            "openai-o3",
+            "openai-o4-mini",
+            "openai-o3-mini",
+            "openai-o1",
+            "openai-o1-mini",
+            "anthropic-sonnet-4",
+            "anthropic-3-5-sonnet",
+            "anthropic-3-opus",
+        ],
     )
     def test_known_models_have_tps_rates(self, model: str, expected_tps: float) -> None:
         """Known models should have default TPS rates."""
         assert DEFAULT_TPS_RATES[model] == expected_tps
+
+    def test_phase_two_proxied_models_all_have_positive_default_tps(self) -> None:
+        """Phase 2 proxied OpenAI + Anthropic model IDs each have a default TPS row.
+
+        Gemini keys in ``DEFAULT_TPS_RATES`` are forward-looking (Phase 13); this
+        assertion matches the models volume-proxied when Phase 2 closed.
+        """
+        phase_two = (
+            "o3",
+            "o4-mini",
+            "o3-mini",
+            "o1",
+            "o1-mini",
+            "claude-sonnet-4-20250514",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-opus-20240229",
+        )
+        for model in phase_two:
+            assert model in DEFAULT_TPS_RATES
+            assert DEFAULT_TPS_RATES[model] > 0.0
 
     def test_partial_model_match_returns_correct_tps(self, estimator: TimingEstimator) -> None:
         """Model names with date suffixes should match their base model."""
