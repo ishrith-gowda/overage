@@ -14,6 +14,8 @@ export DD_TRACE_ENABLED="${DD_TRACE_ENABLED:-false}"
 export DD_INSTRUMENTATION_TELEMETRY_ENABLED="${DD_INSTRUMENTATION_TELEMETRY_ENABLED:-false}"
 
 python3 -m pytest proxy/tests/test_api.py -q --timeout=120
+# Phase 0.5 — Alembic applies on a fresh SQLite file (no AppleDouble sidecars; see CONTRIBUTING).
+python3 -m pytest proxy/tests/test_migrations_smoke.py -q --timeout=120
 
 END_TS=$(date +%s)
 ELAPSED=$((END_TS - START_TS))

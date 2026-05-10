@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 import pytest
 import pytest_asyncio
+from asgi_lifespan import LifespanManager
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from proxy.storage.models import (
@@ -47,6 +48,8 @@ os.environ["LOG_LEVEL"] = "WARNING"
 # so they apply before the interpreter imports site-packages in fragile environments.
 os.environ["DD_TRACE_ENABLED"] = "false"
 os.environ["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
+# Lifespan must not run Alembic or create_all on the app engine; fixtures own test schema.
+os.environ["OVERAGE_SKIP_APP_DB_SCHEMA"] = "1"
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +65,16 @@ _test_session_factory = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
 )
+
+
+def test_async_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Return the pytest async session factory (same DB as ``get_db`` override).
+
+    Patch ``proxy.api.routes.get_session_factory`` with this in tests so
+    ``BackgroundTasks`` that call ``_record_and_estimate`` persist to the
+    in-memory test database instead of the app default engine.
+    """
+    return _test_session_factory
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -115,11 +128,18 @@ def app() -> FastAPI:
 
 @pytest_asyncio.fixture
 async def client(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
-    """Provide an httpx.AsyncClient bound to the test app."""
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app),
-        base_url="http://testserver",
-    ) as ac:
+    """Provide an httpx.AsyncClient bound to the test app.
+
+    ``httpx.ASGITransport`` does not run ASGI lifespan on its own; ``LifespanManager``
+    wraps the app so startup registers providers and ``init_engine`` runs.
+    """
+    async with (
+        LifespanManager(app),
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://testserver",
+        ) as ac,
+    ):
         yield ac
 
 

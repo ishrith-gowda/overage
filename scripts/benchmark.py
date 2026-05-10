@@ -1,20 +1,29 @@
 #!/usr/bin/env python3
 """Measure HTTP latency to the Overage proxy (wire round-trip).
 
-Repeated requests to ``GET /health`` (or another path) yield min/max/mean and
-percentiles in milliseconds. Use this as a baseline for how responsive the
-proxy process is on your machine. End-to-end LLM latency includes provider time;
-for TPS-style calibration see ``scripts/profile_tps.py``.
+Repeated requests to ``GET /health`` (or another path / method) yield
+min/max/mean and percentiles in milliseconds. Default ``/health`` measures how
+responsive the FastAPI process is on your machine (no auth, no DB write).
+Use ``--method POST`` with ``--path`` and ``--json`` to approximate proxy RTT
+when the server is running with a valid ``X-API-Key`` (still excludes upstream
+provider latency when the provider is mocked or very fast).
+
+End-to-end LLM latency includes provider time; for TPS-style calibration see
+``scripts/profile_tps.py``.
 
 Usage:
     make run   # terminal 1
     python scripts/benchmark.py
     python scripts/benchmark.py --base-url http://127.0.0.1:8000 --iterations 500
+    python scripts/benchmark.py --path /v1/proxy/openai --method POST \\
+      --header "X-API-Key: ovg_live_..." --header "Authorization: Bearer sk-..." \\
+      --json '{"model":"o3","messages":[{"role":"user","content":"hi"}],"stream":false}'
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import statistics
 import sys
 import time
@@ -49,7 +58,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--path",
         default="/health",
-        help="URL path to request (e.g. /health)",
+        help="URL path to request (e.g. /health or /v1/proxy/openai)",
+    )
+    parser.add_argument(
+        "--method",
+        default="GET",
+        choices=("GET", "POST"),
+        help="HTTP method (POST requires --json for a JSON body)",
+    )
+    parser.add_argument(
+        "--json",
+        dest="json_body",
+        default=None,
+        metavar="BODY",
+        help='JSON body for POST (e.g. \'{"model":"o3","messages":[]}\')',
+    )
+    parser.add_argument(
+        "--header",
+        action="append",
+        default=[],
+        metavar="KEY:VALUE",
+        help="Request header (repeatable), e.g. --header 'X-API-Key: ovg_live_...'",
     )
     parser.add_argument(
         "--iterations",
@@ -109,7 +138,7 @@ def _percentiles_ms(samples: list[float]) -> dict[str, float]:
 
 
 def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
-    """Run timed GET requests and return summary statistics.
+    """Run timed HTTP requests and return summary statistics.
 
     Args:
         args: Parsed CLI arguments.
@@ -120,19 +149,41 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
     url = args.base_url.rstrip("/") + (args.path if args.path.startswith("/") else f"/{args.path}")
     times_ms: list[float] = []
 
+    headers: dict[str, str] = {}
+    for raw in args.header:
+        if ":" not in raw:
+            msg = f"Invalid --header (expected KEY:VALUE): {raw!r}"
+            raise ValueError(msg)
+        key, _, value = raw.partition(":")
+        headers[key.strip()] = value.strip()
+
+    json_payload: dict[str, Any] | None = None
+    if args.method == "POST":
+        if not args.json_body:
+            msg = "--method POST requires --json with a JSON object string"
+            raise ValueError(msg)
+        json_payload = json.loads(args.json_body)
+
     with httpx.Client(timeout=args.timeout) as client:
         for _ in range(args.warmup):
-            client.get(url).raise_for_status()
+            if args.method == "GET":
+                client.get(url, headers=headers).raise_for_status()
+            else:
+                client.post(url, headers=headers, json=json_payload).raise_for_status()
 
         for _ in range(args.iterations):
             t0 = time.perf_counter()
-            response = client.get(url)
+            if args.method == "GET":
+                response = client.get(url, headers=headers)
+            else:
+                response = client.post(url, headers=headers, json=json_payload)
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
             times_ms.append(elapsed_ms)
             response.raise_for_status()
 
     stats = _percentiles_ms(times_ms)
     stats["url"] = url
+    stats["method"] = args.method
     stats["iterations"] = args.iterations
     stats["warmup"] = args.warmup
     return stats
@@ -143,7 +194,7 @@ def main() -> int:
     args = parse_args()
     try:
         summary = run_benchmark(args)
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
         logger.error("benchmark_request_failed", error=str(exc))
         return 1
 
@@ -152,6 +203,7 @@ def main() -> int:
     logger.info(
         "benchmark_complete",
         url=summary["url"],
+        method=summary["method"],
         iterations=summary["iterations"],
         warmup=summary["warmup"],
         min_ms=round(summary["min_ms"], 3),
@@ -165,6 +217,7 @@ def main() -> int:
 
     print()
     print(f"  URL:         {summary['url']}")
+    print(f"  Method:      {summary['method']}")
     print(f"  Iterations:  {summary['iterations']} (warmup {summary['warmup']} discarded)")
     print(f"  min / max:   {summary['min_ms']:.3f} / {summary['max_ms']:.3f} ms")
     print(f"  mean ± σ:    {summary['mean_ms']:.3f} ± {summary['stdev_ms']:.3f} ms")
@@ -172,7 +225,9 @@ def main() -> int:
     print(f"  p99:         {summary['p99_ms']:.3f} ms")
     print()
     print("  PRD proxy overhead targets (critical path): p50 < 5 ms, p99 < 10 ms")
-    print("  (Those apply to added latency on top of the provider; /health is a local baseline.)")
+    print("  (Those apply to added latency on top of the upstream provider.)")
+    print("  Default /health measures local process + routing only.")
+    print("  Use --method POST --path /v1/proxy/... to measure wire RTT through the proxy route.")
     print()
     return 0
 

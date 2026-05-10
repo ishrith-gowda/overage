@@ -78,6 +78,7 @@ dev = [
     "pytest-timeout>=2.4.0,<3.0",
     "pytest-xdist>=3.8.0,<4.0",    # Parallel test execution
     # --- Test utilities ---
+    "asgi-lifespan>=2.1,<3.0",   # Drive FastAPI lifespan with httpx ASGITransport
     "factory-boy>=3.3,<4.0",     # Model factories for test data
     "faker>=33.0,<40.0",         # Fake data generation
     # --- Security scanning ---

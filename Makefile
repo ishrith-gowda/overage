@@ -203,7 +203,7 @@ seed: ## Seed the database with test data
 demo: ## Generate synthetic demo data (no API keys needed)
 	$(PYTHON) scripts/demo_data.py --calls 500 --days 30
 
-benchmark: ## Measure HTTP latency to GET /health (start proxy with `make run` first)
+benchmark: ## HTTP latency: default GET /health; use scripts/benchmark.py --help for POST /v1/proxy/…
 	$(PYTHON) scripts/benchmark.py
 
 profile-tps: ## Profile tokens-per-second rates for supported models

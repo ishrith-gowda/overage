@@ -28,9 +28,9 @@ from proxy.providers.anthropic import AnthropicProvider
 from proxy.providers.base import provider_registry
 from proxy.providers.openai import OpenAIProvider
 from proxy.storage.database import (
+    apply_development_schema,
     check_db_connection,
     close_engine,
-    init_db,
     init_engine,
 )
 
@@ -105,7 +105,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
 
     Startup:
       - Configure logging and Sentry
-      - Initialize database engine and create tables (dev mode)
+      - Initialize database engine; in **development**, apply schema via Alembic
+        (file-backed SQLite / Postgres) or ORM ``create_all`` (ephemeral SQLite)
       - Register LLM provider adapters
       - Load PALACE estimation model
       - Initialize timing estimator and aggregator
@@ -128,8 +129,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
 
     # Database
     init_engine()
-    if settings.is_development:
-        await init_db()
+    await apply_development_schema()
 
     # Register providers
     provider_registry.register(OpenAIProvider())

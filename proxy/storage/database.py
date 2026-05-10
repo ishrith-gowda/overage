@@ -6,10 +6,15 @@ Reference: INSTRUCTIONS.md Section 10 (Database Patterns).
 
 from __future__ import annotations
 
+import asyncio
+import os
+import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
 from sqlalchemy import event, text
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -113,10 +118,99 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-async def init_db() -> None:
-    """Create all tables. Used in development and testing only.
+def _uses_alembic_migrations_for_schema(database_url: str) -> bool:
+    """Return True when Alembic should own schema (Postgres or file-backed SQLite).
 
-    Production uses Alembic migrations instead.
+    Anonymous in-memory SQLite URLs use :func:`init_db` instead so local scripts
+    and ephemeral databases do not require a subprocess migration step.
+
+    Args:
+        database_url: SQLAlchemy database URL string.
+
+    Returns:
+        True if ``alembic upgrade head`` should run for this URL.
+    """
+    u = make_url(database_url)
+    if u.get_backend_name() == "postgresql":
+        return True
+    if u.get_backend_name() != "sqlite":
+        return False
+    db = u.database
+    return db not in (None, ":memory:", "")
+
+
+def _repository_root() -> Path:
+    """Return the repository root (directory containing ``alembic.ini``)."""
+    return Path(__file__).resolve().parents[2]
+
+
+async def run_alembic_upgrade_head(database_url: str) -> None:
+    """Apply all Alembic migrations via the CLI subprocess.
+
+    Uses a subprocess so Alembic loads ``env.py`` the same way as ``make migrate``,
+    without importing migration ``env`` from the running FastAPI process.
+
+    Args:
+        database_url: Async SQLAlchemy URL passed as ``DATABASE_URL``.
+
+    Raises:
+        RuntimeError: If the Alembic command exits non-zero.
+    """
+    repo_root = _repository_root()
+    env = {**os.environ, "DATABASE_URL": database_url}
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-m",
+        "alembic",
+        "upgrade",
+        "head",
+        cwd=str(repo_root),
+        env=env,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        logger.error(
+            "alembic_upgrade_failed",
+            returncode=proc.returncode,
+            stdout=stdout.decode(errors="replace"),
+            stderr=stderr.decode(errors="replace"),
+        )
+        msg = "Alembic upgrade failed; see logs for stdout/stderr."
+        raise RuntimeError(msg)
+    logger.info("alembic_upgrade_complete")
+
+
+async def apply_development_schema() -> None:
+    """Create or migrate the schema in development before handling requests.
+
+    Staging and production must run ``alembic upgrade head`` from deploy/ops;
+    this function only runs when ``overage_env`` is development.
+
+    When ``OVERAGE_SKIP_APP_DB_SCHEMA`` is ``1`` (proxy test suite), this is a
+    no-op; pytest fixtures create tables on the test engine instead.
+
+    File-backed SQLite and PostgreSQL URLs run ``alembic upgrade head``.
+    Ephemeral SQLite (in-memory / blank path) uses :func:`init_db`.
+    """
+    settings = get_settings()
+    if not settings.is_development:
+        return
+    if os.environ.get("OVERAGE_SKIP_APP_DB_SCHEMA") == "1":
+        logger.info("database_schema_skipped", reason="OVERAGE_SKIP_APP_DB_SCHEMA")
+        return
+    if _uses_alembic_migrations_for_schema(settings.database_url):
+        await run_alembic_upgrade_head(settings.database_url)
+        return
+    await init_db()
+
+
+async def init_db() -> None:
+    """Create all tables via ORM metadata (ephemeral SQLite in development).
+
+    File-backed development databases use :func:`apply_development_schema` and
+    Alembic instead. Production uses Alembic from the release pipeline, not this.
     """
     engine = get_engine()
     async with engine.begin() as conn:
