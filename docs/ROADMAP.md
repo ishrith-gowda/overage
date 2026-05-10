@@ -210,7 +210,7 @@ This matrix is the bidirectional cross-reference between PRD §3 user stories an
 | Story | Title | Persona | Priority | Sprint | Phase(s) that deliver it | Coverage notes |
 |-------|-------|---------|----------|--------|--------------------------|----------------|
 | **1** | Route OpenAI API calls through proxy | P1 | P0 | MVP | **Phase 1** (full) | PR #15 delivers Story 1 AC: non-streaming + streaming proxy paths, Overage headers, and DB persistence are covered by **`test_proxy_route.py`** + **`test_openai_provider.py`** (mocked providers). Budget numbers still use `scripts/benchmark.py` (default `/health`; see §1.3). |
-| **2** | Route Anthropic API calls through proxy | P1 | P0 | MVP | **Phase 2** (full) | All AC met by PR #16. Thinking-token extraction implemented in `proxy/providers/anthropic.py`. |
+| **2** | Route Anthropic API calls through proxy | P1 | P0 | MVP | **Phase 2** (full) | PR #16 + post-close test matrix: **`test_anthropic_provider.py`** (unit extraction, forward, streaming adapter) and **`test_proxy_route.py`** (Anthropic non-streaming + streaming proxy + Overage headers, mocked upstream). |
 | **3** | View reported vs estimated reasoning tokens per call | P2 | P0 | MVP | **Phase 3** (full) | `GET /v1/calls` returns `reported_reasoning_tokens`, `estimated_reasoning_tokens`, `discrepancy_pct`, `timing_r_squared`, `signals_agree`. |
 | **4** | View cumulative discrepancy in dollars over time | P2 | P0 | MVP | **Phase 4** (full) | `GET /v1/summary` and `GET /v1/summary/timeseries`. Per-token pricing in `proxy/constants.py`. |
 | **5** | View timing consistency scores | P1 | P1 | MVP | **Phase 3** (data) + **Phase 5** (dashboard column) | `EstimationResult.timing_r_squared` populated; dashboard call table shows it. |
@@ -429,7 +429,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 **Status.** `done` (closed 2026-04-07).
 
-**PR refs.** [#16](https://github.com/ishrith-gowda/overage/pull/16) (merged 2026-04-07).
+**PR refs.** [#16](https://github.com/ishrith-gowda/overage/pull/16) (merged 2026-04-07). Post-close ledger + test matrix updates (Anthropic unit tests, streaming proxy test, TPS table assertions, README manual AC) ship in the same PR that touches this section (see **Recent landings**).
 
 **PRD coverage.** Story 2 (full); NFR latency budget documented.
 
@@ -441,19 +441,20 @@ This is the long section. Each phase has the same shape; copy it as a template w
 |----|---------|----------------------|--------|
 | 2.1 | Implement `proxy/providers/anthropic.py::AnthropicProvider` | Forwards to `https://api.anthropic.com/v1/messages` with `x-api-key` and `anthropic-version` headers | done |
 | 2.2 | Wire OpenAI-style and Anthropic-style aliases on `/v1/proxy/{provider}/v1/messages` | Anthropic SDK with `base_url=http://localhost:8000/v1/proxy/anthropic` works without code changes | done |
-| 2.3 | Extract thinking tokens from `response.usage.thinking_tokens` (when extended thinking enabled) | Missing field → 0; present field → integer | done |
-| 2.4 | Profile TPS rates for Anthropic models in `proxy/constants.py` (claude-sonnet-4 and claude-3.5-sonnet at thinking on) | TPS table in `proxy/estimation/timing.py` covers all proxied models | done |
+| 2.3 | Extract thinking tokens from `response.usage.thinking_tokens` (when extended thinking enabled) | Missing / null / absent field → 0; present integer → value — **`proxy/tests/test_anthropic_provider.py::TestExtractReasoningTokens`** | done |
+| 2.4 | Profile TPS rates for Anthropic + OpenAI models in `proxy/estimation/timing.py` | **`DEFAULT_TPS_RATES`** includes a positive default TPS row for every model volume-proxied at Phase 2 close (OpenAI o-series + Anthropic Claude rows listed in `proxy/tests/test_timing.py::test_phase_two_proxied_models_all_have_positive_default_tps`) | done |
 | 2.5 | Add `make benchmark` target wrapping `scripts/benchmark.py --iterations 200` | `make benchmark` prints summary stats | done |
 | 2.6 | Document latency budget in `README.md` (link to `scripts/benchmark.py`) | README has "Latency benchmark (wire RTT)" section | done |
-| 2.7 | Anthropic SDK quickstart in `README.md` | Curl + Python SDK examples both work | done |
-| 2.8 | Unit + integration tests for Anthropic provider | `proxy/tests/test_*` includes Anthropic cases | done |
+| 2.7 | Anthropic SDK quickstart in `README.md` | Curl + Python SDK examples documented; **live** curl + SDK roundtrip is maintainer smoke (`make run` + keys), not CI — README states this explicitly | done |
+| 2.8 | Unit + integration tests for Anthropic provider | **`proxy/tests/test_anthropic_provider.py`** (14 tests: extraction matrix, `forward_request`, errors, streaming adapter) + **`test_proxy_route.py`** (`TestProxyAnthropicNonStreaming`, `TestProxyAnthropicStreaming`) | done |
 
 **Test plan.**
 
-- Unit: `extract_reasoning_tokens` variants for thinking on/off, missing field, present field.
-- Integration: `test_proxy_route.py::test_proxy_anthropic_*` with mocked httpx.
-- Latency: `scripts/benchmark.py` re-run after Anthropic adapter added; same budget upheld.
-- Manual smoke: `curl http://localhost:8000/v1/proxy/anthropic/v1/messages ...` returns Anthropic's response.
+- Unit: **`proxy/tests/test_anthropic_provider.py`** — `extract_reasoning_tokens` (present / zero / missing / empty / null / sizes), `forward_request` success + timeout + HTTP error + connection error, **`forward_streaming_request`** (SSE `message_start` + `message_delta` usage merge, TTFT).
+- Integration: **`test_proxy_route.py`** — Anthropic `/v1/messages` alias (non-streaming + streaming), mocked `provider_registry`.
+- Timing: **`test_timing.py`** — default TPS for each Phase-2 proxied model id; partial model suffix match unchanged.
+- Latency: `scripts/benchmark.py` (see §1.3); same budget claims as Phase 1.
+- Manual smoke: README curl + Anthropic SDK (requires keys).
 
 **Definition of done.**
 
@@ -464,12 +465,12 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 **Rollback plan.** Same as Phase 1 — flag-flip + revert PR. No migration.
 
-**Related files.** `proxy/providers/anthropic.py`, `proxy/providers/base.py`, `proxy/estimation/timing.py`, `proxy/constants.py`, `scripts/benchmark.py`, `Makefile` (benchmark target), `README.md`.
+**Related files.** `proxy/providers/anthropic.py`, `proxy/providers/base.py`, `proxy/estimation/timing.py`, `proxy/tests/test_anthropic_provider.py`, `proxy/tests/test_proxy_route.py`, `proxy/tests/test_timing.py`, `scripts/benchmark.py`, `Makefile` (benchmark target), `README.md`.
 
 **Risks (closed).**
 
 - Anthropic version-header mismatch (`anthropic-version: 2023-06-01` vs newer) — mitigated by forwarding whatever the client sent rather than rewriting it. Adapter is a pass-through.
-- Streaming for thinking traces (longer-running than Chat Completions) — verified end-to-end in tests; budget upheld.
+- Streaming for thinking traces — **proxy + adapter streaming paths are covered in CI** via mocked `forward_streaming_request` / SSE fixtures (`test_proxy_route.py::TestProxyOpenAIStreaming`, **`TestProxyAnthropicStreaming`**, `test_openai_provider.py`, **`test_anthropic_provider.py`**); live extended-thinking streams remain a maintainer smoke against Anthropic.
 
 ---
 
