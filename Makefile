@@ -20,7 +20,7 @@ DASH_PORT := 8501
 # ---------------------------------------------------------------------------
 .PHONY: install install-dev venv-fresh git-usb-clean lint format typecheck test test-fast test-unit \
         test-integration security run run-dashboard run-doppler check-doppler secrets-verify sync-env-to-doppler \
-        codecov-local github-secret-codecov \
+        codecov-local github-secret-codecov verify-python verify-quickstart \
         docker-up docker-down \
         docker-build migrate migrate-generate seed demo benchmark profile-tps report \
         strip-trailers \
@@ -71,12 +71,19 @@ format: ## Auto-format code and fix lint issues
 typecheck: ## Run mypy in strict mode
 	mypy $(SRC) --strict
 
+verify-python: ## Assert the active interpreter is Python 3.12+ (matches pyproject requires-python)
+	$(PYTHON) scripts/verify_python_version.py
+
+verify-quickstart: ## Run Phase 0.10 install + test_api gate (optional local timing; CI runs this too)
+	@chmod +x scripts/verify_quickstart_budget.sh
+	./scripts/verify_quickstart_budget.sh
+
 # ---------------------------------------------------------------------------
 # Testing
 # ---------------------------------------------------------------------------
 
 test: ## Run all tests with coverage (floor matches .github/workflows/ci.yml)
-	pytest $(TESTS) \
+	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false pytest $(TESTS) \
 		-v \
 		--cov=$(SRC) \
 		--cov-report=term-missing \
@@ -85,16 +92,16 @@ test: ## Run all tests with coverage (floor matches .github/workflows/ci.yml)
 		-m "not slow"
 
 test-fast: ## Run tests, stop on first failure, no coverage (fast iteration)
-	pytest $(TESTS) -v -x --no-cov --timeout=30
+	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false pytest $(TESTS) -v -x --no-cov --timeout=30
 
 test-unit: ## Run unit tests only
-	pytest $(TESTS)/unit -v --no-cov --timeout=30
+	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false pytest $(TESTS)/unit -v --no-cov --timeout=30
 
 test-integration: ## Run integration tests only
-	pytest $(TESTS) -v -m integration --no-cov --timeout=120
+	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false pytest $(TESTS) -v -m integration --no-cov --timeout=120
 
 coverage: ## Run tests with HTML coverage report
-	pytest $(TESTS) \
+	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false pytest $(TESTS) \
 		-v \
 		--cov=$(SRC) \
 		--cov-report=term-missing \
@@ -221,7 +228,7 @@ clean: ## Remove caches, build artifacts, and temp files
 # Composite targets
 # ---------------------------------------------------------------------------
 
-check: lint typecheck test security ## Run all checks (lint + typecheck + test + security)
+check: verify-python lint typecheck test security ## Run all checks (lint + typecheck + test + security)
 
 all: check ## Alias for `make check`
 
