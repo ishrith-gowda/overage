@@ -132,7 +132,7 @@ jobs:
       # Upload on PR and main; use always() so uploads run when pytest fails (JUnit + partial cov).
       - name: Upload coverage to Codecov
         if: ${{ !cancelled() && always() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
@@ -141,7 +141,7 @@ jobs:
 
       - name: Upload test results to Codecov (Test Analytics)
         if: ${{ !cancelled() && always() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           report_type: test_results
