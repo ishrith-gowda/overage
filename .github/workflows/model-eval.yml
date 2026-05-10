@@ -95,7 +95,7 @@ jobs:
           " >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload evaluation results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: model-eval-${{ github.sha }}
           path: model/eval/results/eval_${{ github.sha }}.json
