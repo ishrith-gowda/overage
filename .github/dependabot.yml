@@ -1,10 +1,11 @@
 # .github/dependabot.yml — Automated dependency updates
 # Keeps Python packages, GitHub Actions, and Docker images up to date.
-# PRs are labeled for easy filtering and auto-assigned for review.
+# Dependabot still adds bodies + Signed-off-by/Co-authored-by trailers to its
+# *commits*, but the repo squash-merge settings (PR_TITLE + BLANK) strip those
+# when the PR lands on `main`. The PR title format is what matters here.
 
 version: 2
 updates:
-  # Python dependencies (pip ecosystem)
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
@@ -17,13 +18,12 @@ updates:
       - "dependencies"
       - "automated"
     commit-message:
-      prefix: "chore(deps):"
-    # Group minor/patch updates into a single PR to reduce noise
+      prefix: "chore(deps)"
+      include: "scope"
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]
 
-  # GitHub Actions versions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -35,9 +35,9 @@ updates:
       - "ci"
       - "automated"
     commit-message:
-      prefix: "ci(deps):"
+      prefix: "ci(deps)"
+      include: "scope"
 
-  # Docker base images
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
@@ -48,4 +48,5 @@ updates:
       - "docker"
       - "automated"
     commit-message:
-      prefix: "chore(docker):"
+      prefix: "chore(docker)"
+      include: "scope"

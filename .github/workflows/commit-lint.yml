@@ -1,0 +1,100 @@
+# .github/workflows/commit-lint.yml — Enforce commit message hygiene on PRs
+# Project rule (workspace + CONTRIBUTING.md): single-line, all-lowercase,
+# Conventional Commits prefix, no body, no trailers.
+#
+# What this enforces (final commit on main is the PR title because
+# repo squash settings are PR_TITLE + BLANK):
+#   - PR title matches: <type>(scope?): <lowercase subject>
+#   - Subject is <= 72 chars, single line, no trailing period
+#   - PR title is the only thing checked because BLANK strips all bodies/trailers
+#
+# Per-commit warnings (not blocking) help authors keep their dev commits clean too.
+
+name: Commit Lint
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pr-title:
+    name: PR Title (final squash subject)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title format
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          echo "PR title: ${PR_TITLE}"
+
+          # Allowed Conventional Commit types per CONTRIBUTING.md.
+          re='^(feat|fix|docs|refactor|test|ci|chore|perf|style|build)(\([a-z0-9._/-]+\))?: [a-z0-9].{1,72}$'
+
+          if [[ ! "${PR_TITLE}" =~ ${re} ]]; then
+            echo "::error title=Invalid PR title::PR title must match '<type>(scope?): <lowercase subject>' and start with a lowercase letter or digit."
+            echo "Valid types: feat fix docs refactor test ci chore perf style build"
+            echo "Examples:"
+            echo "  feat: add anthropic provider adapter"
+            echo "  fix(proxy): handle missing reasoning_tokens field"
+            echo "  ci: add commit-message lint workflow"
+            exit 1
+          fi
+
+          if [[ "${PR_TITLE}" =~ \.$ ]]; then
+            echo "::error title=Trailing period::PR title must not end with a period."
+            exit 1
+          fi
+
+          if [[ ${#PR_TITLE} -gt 80 ]]; then
+            echo "::error title=Too long::PR title is ${#PR_TITLE} chars; must be <= 80."
+            exit 1
+          fi
+
+          if [[ "${PR_TITLE}" =~ $'\n' ]]; then
+            echo "::error title=Multi-line::PR title must be a single line."
+            exit 1
+          fi
+
+          echo "PR title is valid."
+
+  commit-bodies:
+    name: Per-commit advisory (warns only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Warn on multi-line / trailers in dev commits
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # Final on main is the PR title (BLANK body), so this is informational.
+          # We still surface noisy commits so authors can clean up before squash.
+          range="${BASE_SHA}..${HEAD_SHA}"
+          warned=0
+          while IFS= read -r sha; do
+            [ -z "$sha" ] && continue
+            body=$(git log -1 --format=%B "$sha")
+            line_count=$(printf '%s' "$body" | grep -c '' || true)
+            if [ "$line_count" -gt 1 ]; then
+              echo "::warning title=Multi-line commit::${sha:0:7} has ${line_count} lines; project policy is single-line subjects (squash will normalise)."
+              warned=1
+            fi
+            if printf '%s' "$body" | grep -qiE '^(signed-off-by|co-authored-by|made-with|generated-by):'; then
+              echo "::warning title=Trailer present::${sha:0:7} contains a forbidden trailer (signed-off-by / co-authored-by / made-with / generated-by)."
+              warned=1
+            fi
+          done < <(git rev-list "$range")
+          if [ "$warned" -eq 0 ]; then
+            echo "All dev commits have clean single-line subjects with no trailers."
+          fi
