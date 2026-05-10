@@ -6,6 +6,7 @@ Reference: INSTRUCTIONS.md Section 8 (Testing Standards).
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -200,10 +201,18 @@ class TestForwardStreamingRequest:
             provider_api_key=sample_request.provider_api_key,
         )
 
+        usage_payload = {
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30,
+                "completion_tokens_details": {"reasoning_tokens": 777},
+            }
+        }
+        usage_sse = f"data: {json.dumps(usage_payload)}\n"
         sse_lines = [
             'data: {"choices":[{"delta":{"content":"hello"}}]}\n',
-            'data: {"usage":{"prompt_tokens":10,"completion_tokens":20,"total_tokens":30,'
-            '"completion_tokens_details":{"reasoning_tokens":777}}}\n',
+            usage_sse,
             "data: [DONE]\n",
         ]
 
