@@ -284,10 +284,13 @@ See [INSTRUCTIONS.md](./INSTRUCTIONS.md) for the complete environment variable r
 
 | Document | Description |
 |----------|-------------|
+| [docs/ROADMAP.md](./docs/ROADMAP.md) | **Master phase ledger — single source of truth for what Overage is building, has built, and plans to build (status, dependencies, acceptance criteria, test plans, definition of done, rollback)** |
 | [INSTRUCTIONS.md](./INSTRUCTIONS.md) | Developer guide: coding standards, patterns, commands |
-| [docs/CODECOV.md](./docs/CODECOV.md) | Codecov: GitHub secret, activation, troubleshooting |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | Setup, commit format, PR + merge process, code review expectations |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | System architecture, diagrams, technology decisions |
 | [PRD.md](./PRD.md) | Product requirements, user stories, data models, API contracts |
+| [docs/DEV_INFRASTRUCTURE.md](./docs/DEV_INFRASTRUCTURE.md) | Account / platform / vendor inventory and Doppler / 1Password exit criteria |
+| [docs/CODECOV.md](./docs/CODECOV.md) | Codecov: GitHub secret, activation, troubleshooting |
 | [.github/copilot-instructions.md](.github/copilot-instructions.md) | GitHub Copilot-specific patterns and templates |
 
 ## Development

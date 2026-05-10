@@ -166,7 +166,7 @@ make strip-trailers SINCE=<last-clean-sha> REF=main   # local rewrite, dry run-i
 # … or, in the GitHub UI: Actions → "Strip Trailers" → Run workflow with confirm=YES
 ```
 
-This is documented in `docs/ROADMAP.md` §7.6 and uses the safety tag `pre-rewrite-2026-05-10` as the recovery point.
+This is documented in [`docs/ROADMAP.md`](./docs/ROADMAP.md) §5 (Phase 7, subtask 7.6) and uses the safety tag `pre-rewrite-2026-05-10` as the recovery point. The same document is the canonical phase / task ledger for everything Overage is building, has built, and plans to build — start there for any non-trivial change.
 
 ---
 
