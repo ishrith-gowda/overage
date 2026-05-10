@@ -223,7 +223,7 @@ make benchmark
 # Equivalent: python scripts/benchmark.py --iterations 200
 ```
 
-This measures round-trip time to `GET /health` (local baseline). Provider-facing latency and TPS calibration use `scripts/profile_tps.py` when you have API keys.
+This measures round-trip time to `GET /health` (local FastAPI + HTTP baseline, not upstream provider RTT). For a **POST** through the proxy route (still without real provider latency if you mock or use a tiny payload), see `python scripts/benchmark.py --help`. Provider-facing latency and TPS calibration use `scripts/profile_tps.py` when you have API keys.
 
 ### Viewing Discrepancies
 

@@ -149,3 +149,6 @@ temp/
 # Profiling output
 *.prof
 profile_results/
+
+# macOS AppleDouble on exFAT/USB (must never be committed beside real .py — breaks Alembic)
+**/._*

@@ -17,6 +17,19 @@ if TYPE_CHECKING:
     import httpx
 
 
+def _assert_overage_proxy_headers(response: httpx.Response, *, streaming: bool = False) -> None:
+    """Shared assertions for Overage proxy response headers (Phase 1.7 / 1.12)."""
+    rid = response.headers.get("X-Overage-Request-Id")
+    assert rid is not None
+    assert len(rid) > 0
+    lat = response.headers.get("X-Overage-Latency-Added-Ms")
+    assert lat is not None
+    if streaming:
+        assert lat == "0"
+    else:
+        assert float(lat) >= 0.0
+
+
 class TestProxyAuth:
     """Authentication requirements for the proxy route."""
 
@@ -79,6 +92,7 @@ class TestProxyOpenAINonStreaming:
         body = response.json()
         assert body["model"] == "o3"
         assert body["usage"]["completion_tokens_details"]["reasoning_tokens"] == 10000
+        _assert_overage_proxy_headers(response, streaming=False)
         mock_provider.forward_request.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -125,6 +139,7 @@ class TestProxyOpenAINonStreaming:
 
         assert response.status_code == 200
         assert response.json()["model"] == "o3-mini"
+        _assert_overage_proxy_headers(response, streaming=False)
 
 
 class TestProxyAnthropicNonStreaming:
@@ -181,6 +196,7 @@ class TestProxyAnthropicNonStreaming:
         body = response.json()
         assert body["model"] == "claude-sonnet-4-20250514"
         assert body["usage"]["thinking_tokens"] == 1200
+        _assert_overage_proxy_headers(response, streaming=False)
         mock_provider.forward_request.assert_awaited_once()
 
 
@@ -203,3 +219,120 @@ class TestProxyErrors:
             json={"model": "x", "messages": []},
         )
         assert response.status_code != 200
+
+
+class TestProxyOpenAIStreaming:
+    """Streaming OpenAI proxy path (Phase 1.6) with mocked upstream."""
+
+    @pytest.mark.asyncio
+    async def test_proxy_openai_streaming_returns_sse_with_overage_headers(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+    ) -> None:
+        """StreamingResponse echoes SSE chunks and Overage latency headers (proxy adds 0 ms)."""
+        prov_response = ProviderResponse(
+            provider="openai",
+            model="o3",
+            raw_response={},
+            raw_usage={"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3},
+            input_tokens=1,
+            output_tokens=2,
+            reasoning_tokens=0,
+            total_latency_ms=5.0,
+            ttft_ms=1.2,
+            status_code=200,
+            is_streaming=True,
+        )
+        chunks = [b'data: {"chunk":true}\n\n', b"data: [DONE]\n\n"]
+        mock_provider = AsyncMock()
+        mock_provider.forward_streaming_request = AsyncMock(return_value=(prov_response, chunks))
+
+        with (
+            patch("proxy.api.routes.provider_registry.get", return_value=mock_provider),
+            patch("proxy.api.routes._record_and_estimate", new=AsyncMock()),
+        ):
+            response = await client.post(
+                "/v1/proxy/openai",
+                headers={
+                    "X-API-Key": test_api_key,
+                    "Authorization": "Bearer sk-test",
+                },
+                json={
+                    "model": "o3",
+                    "messages": [{"role": "user", "content": "stream me"}],
+                    "stream": True,
+                },
+            )
+
+        assert response.status_code == 200
+        assert "event-stream" in (response.headers.get("content-type") or "")
+        _assert_overage_proxy_headers(response, streaming=True)
+        body = response.content
+        assert b"data:" in body
+        mock_provider.forward_streaming_request.assert_awaited_once()
+
+
+class TestProxyBackgroundPersistence:
+    """Proxy → ``_record_and_estimate`` → ``GET /v1/calls`` (Phase 1.8) without mocking the task."""
+
+    @pytest.mark.asyncio
+    async def test_proxy_openai_nonstreaming_persists_call_visible_in_list(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        mock_openai_response: Any,
+    ) -> None:
+        """Background task writes ``APICallLog`` rows visible to the same test database."""
+        import asyncio
+
+        from proxy.tests.conftest import test_async_session_factory
+
+        raw = mock_openai_response(model="o3", reasoning_tokens=42)
+        prov_response = ProviderResponse(
+            provider="openai",
+            model="o3",
+            raw_response=raw,
+            raw_usage=raw["usage"],
+            input_tokens=10,
+            output_tokens=20,
+            reasoning_tokens=42,
+            total_latency_ms=12.3,
+            ttft_ms=None,
+            status_code=200,
+            is_streaming=False,
+        )
+        mock_provider = AsyncMock()
+        mock_provider.forward_request = AsyncMock(return_value=prov_response)
+
+        session_factory = test_async_session_factory()
+        with (
+            patch("proxy.api.routes.provider_registry.get", return_value=mock_provider),
+            patch("proxy.api.routes.get_session_factory", return_value=session_factory),
+        ):
+            post_r = await client.post(
+                "/v1/proxy/openai",
+                headers={
+                    "X-API-Key": test_api_key,
+                    "Authorization": "Bearer sk-test",
+                },
+                json={
+                    "model": "o3",
+                    "messages": [{"role": "user", "content": "persist"}],
+                    "stream": False,
+                },
+            )
+
+        assert post_r.status_code == 200
+        _assert_overage_proxy_headers(post_r, streaming=False)
+
+        await asyncio.sleep(0.05)
+
+        list_r = await client.get("/v1/calls", headers={"X-API-Key": test_api_key})
+        assert list_r.status_code == 200
+        payload = list_r.json()
+        assert payload["total"] >= 1
+        first = payload["calls"][0]
+        assert first["provider"] == "openai"
+        assert first["model"] == "o3"
+        assert first["reported_reasoning_tokens"] == 42

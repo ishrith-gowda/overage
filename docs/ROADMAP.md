@@ -29,6 +29,7 @@ When a phase completes, the agent updates this table, the **Status** field of th
 
 | Date | Phase / Subtask | PR | Commit | Note |
 |------|-----------------|----|--------|------|
+| 2026-05-10 | Phase 0.5 / 0.10 + Phase 1 ledger accuracy | — | — | Alembic smoke in `foundation-quickstart` + `test_migrations_smoke.py`; dev startup runs `alembic upgrade head` for file-backed DBs; ROADMAP §1.3 / Phase 1 / §3 aligned with tests and `benchmark.py` semantics |
 | 2026-05-10 | Phase 0 verification (ledger refresh) | #47 | merged | `verify-python`, auth/request-id tests, CI `foundation-quickstart`, ddtrace-safe pytest |
 | 2026-05-10 | 7.6 / 7.7 | #45 | tip of `docs/cursor-rule-contributing-workflow` | trailer-cleanup tooling, manual-merge doc |
 | 2026-05-10 | 7.5 | force-push (no PR) | `pre-rewrite-2026-05-10` → new `main` tip | history rewrite of 23 dirty commits, no force-push allowed since |
@@ -101,9 +102,9 @@ The full product spec is in [`PRD.md`](../PRD.md). This document never restates 
 
 These constraints apply to **every** phase and override any subtask that would violate them. They are repeated here so a contributor reviewing one phase does not need to read all of `INSTRUCTIONS.md` to understand the non-negotiables.
 
-1. **Latency budget.** The proxy adds **p50 < 5ms, p99 < 10ms** to the critical path. Any phase that touches `proxy/api/routes.py::proxy_request`, `proxy/providers/*`, or middleware **must** include a latency benchmark step in its acceptance criteria.
+1. **Latency budget.** The proxy adds **p50 < 5ms, p99 < 10ms** to the critical path. Any phase that touches `proxy/api/routes.py::proxy_request`, `proxy/providers/*`, or middleware **must** include a latency benchmark step in its acceptance criteria. **`scripts/benchmark.py` defaults to `GET /health`**, which measures the local FastAPI process plus HTTP stack (a useful baseline, not upstream provider RTT). To approximate **HTTP overhead through the proxy route** (still without the upstream provider), use `POST` with `--path` aimed at a small `/v1/proxy/...` body; see `scripts/benchmark.py --help`. Recording p50/p99 against a live provider remains a maintainer exercise unless a phase adds CI telemetry.
 2. **Privacy.** In cloud mode, raw prompts and responses are **never** persisted. Only metadata: SHA-256 hash, character lengths, token counts, raw provider usage JSON. On-prem mode (Phase 16) is the only path where raw content may live in a customer database, and only when `STORE_RAW_CONTENT=true` is explicitly set.
-3. **Stateless proxy.** No phase introduces request-scoped state in process memory that survives the response. Background tasks may read/write the database; they may not write to module-level state.
+3. **Stateless proxy.** No phase introduces **request-scoped** state in process memory that survives the response: nothing keyed by client identity should accumulate per-call payloads or responses across HTTP transactions. Shared process singletons that are **read-mostly after startup** (for example `provider_registry`, bounded rate-limit windows keyed by API key, the estimation model handle) are allowed; they must not become an unbounded in-memory cache of prompts, answers, or full provider bodies.
 4. **Type-safety.** mypy strict on `proxy/`. Any phase that adds modules under `proxy/` must pass `mypy proxy/ --strict` before merge.
 5. **CI green.** Lint, Type Check, Test, Security Scan, Docker Build, Trivy SARIF upload, CodeQL Analysis, Dependency Review, and Commit Lint must all be green on the PR. `main` is branch-protected with `strict: true` (must be up to date) and `required_linear_history: true`.
 6. **Commits.** Single-line, all-lowercase, conventional-commit-prefixed, no body, no trailers, ≤ 72 chars subject. PR titles ≤ 80 chars. The squash merge command is always `gh pr merge <num> --squash --subject "<exact PR title>" --body ""` (see [`CONTRIBUTING.md`](../CONTRIBUTING.md)).
@@ -208,7 +209,7 @@ This matrix is the bidirectional cross-reference between PRD §3 user stories an
 
 | Story | Title | Persona | Priority | Sprint | Phase(s) that deliver it | Coverage notes |
 |-------|-------|---------|----------|--------|--------------------------|----------------|
-| **1** | Route OpenAI API calls through proxy | P1 | P0 | MVP | **Phase 1** (full) | All AC met by PR #15. Streaming SSE supported via `proxy/api/routes.py::proxy_request`. |
+| **1** | Route OpenAI API calls through proxy | P1 | P0 | MVP | **Phase 1** (full) | PR #15 delivers Story 1 AC: non-streaming + streaming proxy paths, Overage headers, and DB persistence are covered by **`test_proxy_route.py`** + **`test_openai_provider.py`** (mocked providers). Budget numbers still use `scripts/benchmark.py` (default `/health`; see §1.3). |
 | **2** | Route Anthropic API calls through proxy | P1 | P0 | MVP | **Phase 2** (full) | All AC met by PR #16. Thinking-token extraction implemented in `proxy/providers/anthropic.py`. |
 | **3** | View reported vs estimated reasoning tokens per call | P2 | P0 | MVP | **Phase 3** (full) | `GET /v1/calls` returns `reported_reasoning_tokens`, `estimated_reasoning_tokens`, `discrepancy_pct`, `timing_r_squared`, `signals_agree`. |
 | **4** | View cumulative discrepancy in dollars over time | P2 | P0 | MVP | **Phase 4** (full) | `GET /v1/summary` and `GET /v1/summary/timeseries`. Per-token pricing in `proxy/constants.py`. |
@@ -329,17 +330,18 @@ This is the long section. Each phase has the same shape; copy it as a template w
 | 0.2 | Add `proxy/main.py` FastAPI app factory and `proxy/config.py` pydantic-settings | `uvicorn proxy.main:app` starts and `GET /health` returns 200 | done |
 | 0.3 | Wire structlog with request-ID middleware in `proxy/middleware/request_id.py` | `X-Request-ID` response header is UUID4; 401 responses echo the same id in JSON `request_id` — `proxy/tests/test_api.py::TestHealthEndpoint` and `TestCallsEndpoints` 401 tests | done |
 | 0.4 | Define ORM models in `proxy/storage/models.py` matching PRD §4 | `from proxy.storage.models import User, APIKey, APICallLog, EstimationResult, DiscrepancyAlert` succeeds on **Python 3.12+** (`requires-python` in `pyproject.toml`); `make verify-python` exits 0 | done |
-| 0.5 | Set up Alembic in `proxy/storage/migrations/` | `alembic upgrade head` builds the schema on a fresh SQLite | done |
+| 0.5 | Set up Alembic in `proxy/storage/migrations/` | `alembic upgrade head` builds the schema on a fresh SQLite file; **`pytest proxy/tests/test_migrations_smoke.py`** runs that subprocess plus `scripts/verify_alembic_schema.py` (asserts `users`, `api_keys`, `api_call_logs`); main **Test** CI job runs the same module under `pytest proxy/tests/` | done |
 | 0.6 | Auth endpoints `POST /v1/auth/register` and `POST /v1/auth/apikey` | Register returns `ovg_live_…` once; missing `X-API-Key`, unknown raw key, and non-DB hashes return **401** — `test_list_calls_requires_auth`, `test_list_calls_unknown_api_key_returns_401`, `test_post_apikey_requires_auth` | done |
 | 0.7 | Custom exception hierarchy in `proxy/exceptions.py` | `OverageError` with subclasses; global FastAPI exception handler maps to `ErrorResponse` | done |
 | 0.8 | First CI workflow `ci.yml` with lint + type-check + test jobs | `ci.yml`: lint → typecheck → test; **foundation-quickstart** (Phase 0.10); security; Docker build (after test + foundation); workflow `env` sets `DD_TRACE_ENABLED=false` for stable pytest | done |
 | 0.9 | Makefile with `install-dev`, `lint`, `typecheck`, `test`, `run`, `migrate`, `check` | `make check` runs **verify-python** (3.12+), lint, typecheck, test, security | done |
-| 0.10 | `README.md` quickstart that boots the proxy in <5 minutes | CI job **`foundation-quickstart`** runs `scripts/verify_quickstart_budget.sh`: `pip install -e ".[dev]"` + `pytest proxy/tests/test_api.py` completes in **≤300s** on `ubuntu-latest`; README describes minimal vs `make install-dev` full stack | done |
+| 0.10 | `README.md` quickstart that boots the proxy in <5 minutes | CI job **`foundation-quickstart`** runs `scripts/verify_quickstart_budget.sh`: `pip install -e ".[dev]"` + `pytest proxy/tests/test_api.py` + **`pytest proxy/tests/test_migrations_smoke.py`** completes in **≤300s** on `ubuntu-latest`; README describes minimal vs `make install-dev` full stack | done |
 
 **Test plan.**
 
 - Unit / API integration: `proxy/tests/test_api.py` — `TestHealthEndpoint::test_health_returns_200_and_status`, request-ID header tests, auth register/key paths, **unknown API key 401** tests (`test_list_calls_unknown_api_key_returns_401`, `test_list_calls_401_matches_x_request_id_header_and_body`).
-- Integration: implicit — `pytest proxy/tests/` boots the FastAPI test client and exercises the full router.
+- **Alembic:** `proxy/tests/test_migrations_smoke.py` — fresh temp SQLite + `alembic upgrade head` + `scripts/verify_alembic_schema.py`.
+- Integration: implicit — `pytest proxy/tests/` boots the FastAPI test client and exercises the full router; **`asgi-lifespan.LifespanManager`** in `conftest.py` drives ASGI lifespan (httpx `ASGITransport` does not), so startup registers providers against the same process as tests.
 - Latency: not applicable yet (no provider call path).
 - Manual smoke: `curl localhost:8000/health` after `make run`.
 
@@ -347,13 +349,13 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 - [x] All subtasks done.
 - [x] PR #14 merged with green CI.
-- [x] `make check` passes from a fresh clone.
+- [x] `make check` passes from a fresh clone (enforced by CI **Test** + **foundation-quickstart** + lint/typecheck/security; local: clone → venv → `COPYFILE_DISABLE=1 make install-dev` → `make check`).
 - [x] Quickstart in `README.md` reproducible.
 - [x] Section updated with PR ref and date.
 
 **Rollback plan.** Not applicable. This phase is the floor; rollback would mean abandoning the project. If a foundational choice (e.g. SQLAlchemy 2.0 vs Tortoise) needs to change, it ships as a separate refactor PR with its own phase rather than reverting Phase 0.
 
-**Related files.** `pyproject.toml`, `proxy/main.py`, `proxy/config.py`, `proxy/exceptions.py`, `proxy/storage/`, `proxy/middleware/request_id.py`, `proxy/api/auth.py`, `Makefile`, `scripts/verify_python_version.py`, `scripts/verify_quickstart_budget.sh`, `.github/workflows/ci.yml`, `README.md`, `INSTRUCTIONS.md`.
+**Related files.** `pyproject.toml`, `proxy/main.py`, `proxy/config.py`, `proxy/exceptions.py`, `proxy/storage/`, `proxy/storage/migrations/`, `proxy/middleware/request_id.py`, `proxy/api/auth.py`, `Makefile`, `scripts/verify_python_version.py`, `scripts/verify_quickstart_budget.sh`, `scripts/verify_alembic_schema.py`, `.github/workflows/ci.yml`, `README.md`, `INSTRUCTIONS.md`.
 
 **Risks (closed).**
 
@@ -381,24 +383,24 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 | ID | Subtask | Acceptance criterion | Status |
 |----|---------|----------------------|--------|
-| 1.1 | Implement `proxy/providers/base.py::BaseProvider` ABC with `forward_request`, `forward_streaming_request`, `extract_usage`, `get_model_from_response` | Subclassing the ABC and forgetting `forward_request` raises at import time | done |
+| 1.1 | Implement `proxy/providers/base.py::LLMProvider` ABC with `forward_request`, `forward_streaming_request`, `extract_reasoning_tokens` | Subclassing the ABC and omitting an abstract method raises **`TypeError` at instantiation**, not at import | done |
 | 1.2 | Implement `proxy/providers/openai.py::OpenAIProvider` | Forwards to `https://api.openai.com/v1/chat/completions` with `Authorization: Bearer <key>` | done |
-| 1.3 | Implement `proxy/providers/registry.py::provider_registry` with `get(name) -> BaseProvider` | `provider_registry.get("openai")` returns `OpenAIProvider`; `get("nope")` raises `ValidationError` | done |
+| 1.3 | `proxy/providers/base.py::ProviderRegistry` / `provider_registry` with `get(name) -> LLMProvider` | `provider_registry.get("openai")` returns `OpenAIProvider`; `get("nope")` raises **`ProviderError`** | done |
 | 1.4 | Wire `POST /v1/proxy/{provider_name}` and `/v1/proxy/{provider_name}/chat/completions` in `proxy/api/routes.py::proxy_request` | `curl -X POST $BASE/v1/proxy/openai/chat/completions ...` returns the OpenAI response unmodified | done |
 | 1.5 | Extract reasoning tokens from `response.usage.completion_tokens_details.reasoning_tokens` | Missing field defaults to 0; valid response yields the integer | done |
-| 1.6 | Streaming SSE support via `forward_streaming_request` and `StreamingResponse` | `curl -N --no-buffer ...` shows event chunks; TTFT recorded | done |
-| 1.7 | `X-Overage-Request-Id` and `X-Overage-Latency-Added-Ms` response headers populated | Round-trip script asserts headers exist | done |
-| 1.8 | Background task `_record_and_estimate` writes `APICallLog` row | After a call, `GET /v1/calls` lists it | done |
-| 1.9 | `scripts/benchmark.py` measures local roundtrip latency to `/health` | `make benchmark` prints p50/p99; goal: p50<5ms, p99<10ms on dev hardware | done |
+| 1.6 | Streaming SSE support via `forward_streaming_request` and `StreamingResponse` | `curl -N --no-buffer ...` shows event chunks; TTFT recorded; **`proxy/tests/test_openai_provider.py::TestForwardStreamingRequest`** and **`proxy/tests/test_proxy_route.py::TestProxyOpenAIStreaming`** exercise the streaming adapter and proxy path with mocks | done |
+| 1.7 | `X-Overage-Request-Id` and `X-Overage-Latency-Added-Ms` response headers populated | **`test_proxy_route.py`** asserts both headers on non-streaming and streaming proxy responses | done |
+| 1.8 | Background task `_record_and_estimate` writes `APICallLog` row | **`test_proxy_route.py::TestProxyBackgroundPersistence`** (no patch on `_record_and_estimate`; session factory aligned with test DB) then **`GET /v1/calls`** lists the new row | done |
+| 1.9 | `scripts/benchmark.py` measures HTTP round-trip (default **`GET /health`**) | `make benchmark` prints p50/p99; default measures local process + HTTP to `/health` per §1.3; optional **`POST`** to `/v1/proxy/...` measures proxy-route overhead without upstream | done |
 | 1.10 | Quickstart in `README.md` shows OpenAI Python SDK with `base_url` redirect | Timed reproduction by maintainer | done |
-| 1.11 | Unit tests `proxy/tests/test_openai_provider.py` | All cases covered: success, missing usage, missing reasoning_tokens, timeout, HTTP error | done |
-| 1.12 | Integration test `proxy/tests/test_proxy_route.py::test_proxy_openai_*` | Mocked httpx returns canned response; full flow asserts correct headers and body | done |
+| 1.11 | Unit tests `proxy/tests/test_openai_provider.py` | **15** collected tests (success, missing usage, missing reasoning_tokens, timeout, HTTP error, streaming/TTFT, etc.); run `pytest proxy/tests/test_openai_provider.py --collect-only` | done |
+| 1.12 | Integration tests `proxy/tests/test_proxy_route.py::test_proxy_openai_*` (+ streaming / persistence classes) | Mocked httpx; asserts response body, **`X-Overage-Request-Id`**, **`X-Overage-Latency-Added-Ms`**, and (where applicable) DB visibility | done |
 
 **Test plan.**
 
-- Unit: `proxy/tests/test_openai_provider.py` (12 cases).
-- Integration: `proxy/tests/test_proxy_route.py` (full request → DB row → response).
-- Latency: `scripts/benchmark.py --iterations 200` shows `p50<5ms p99<10ms` against `/health`. Provider RTT is dominated by the upstream provider.
+- Unit: `proxy/tests/test_openai_provider.py` (**15** tests; `pytest --collect-only`).
+- Integration: `proxy/tests/test_proxy_route.py` (non-streaming + streaming + background persistence to `GET /v1/calls`).
+- Latency: `scripts/benchmark.py --iterations 200` default **`GET /health`** (§1.3); optional POST proxy path for wire-only comparison.
 - Manual smoke: `curl http://localhost:8000/v1/proxy/openai/chat/completions -H "X-API-Key: ..." -H "Authorization: Bearer $OPENAI_API_KEY" -d '{"model":"o3", ...}'` returns OpenAI's response with Overage headers prepended.
 
 **Definition of done.**
@@ -415,7 +417,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 **Risks (closed).**
 
 - httpx streaming deadlock under specific provider chunking — mitigated by `forward_streaming_request` returning the byte chunks list rather than a live async iterator. Re-evaluate if memory pressure becomes an issue.
-- OpenAI changing the reasoning-token field path — mitigated by `extract_usage` defaulting to 0 on missing fields and logging a warning, so the proxy never 500s on schema drift.
+- OpenAI changing the reasoning-token field path — mitigated by `extract_reasoning_tokens` defaulting to 0 on missing fields and logging a warning, so the proxy never 500s on schema drift.
 
 ---
 
@@ -448,7 +450,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 **Test plan.**
 
-- Unit: extract_usage variants for thinking on/off, missing field, present field.
+- Unit: `extract_reasoning_tokens` variants for thinking on/off, missing field, present field.
 - Integration: `test_proxy_route.py::test_proxy_anthropic_*` with mocked httpx.
 - Latency: `scripts/benchmark.py` re-run after Anthropic adapter added; same budget upheld.
 - Manual smoke: `curl http://localhost:8000/v1/proxy/anthropic/v1/messages ...` returns Anthropic's response.
@@ -462,7 +464,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 **Rollback plan.** Same as Phase 1 — flag-flip + revert PR. No migration.
 
-**Related files.** `proxy/providers/anthropic.py`, `proxy/providers/registry.py`, `proxy/estimation/timing.py`, `proxy/constants.py`, `scripts/benchmark.py`, `Makefile` (benchmark target), `README.md`.
+**Related files.** `proxy/providers/anthropic.py`, `proxy/providers/base.py`, `proxy/estimation/timing.py`, `proxy/constants.py`, `scripts/benchmark.py`, `Makefile` (benchmark target), `README.md`.
 
 **Risks (closed).**
 
@@ -1012,7 +1014,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 | 13.1 | Implement `proxy/providers/gemini.py::GeminiProvider` | Forwards to `https://generativelanguage.googleapis.com/v1beta/models/...` |
 | 13.2 | Extract `thoughts_token_count` from `response.usage_metadata.thoughts_token_count` per Google docs | Missing field → 0 |
 | 13.3 | Add Gemini TPS rates to `proxy/constants.py` and `proxy/estimation/timing.py` | Documented; verified by `scripts/profile_tps.py` once an API key is available |
-| 13.4 | Register adapter in `proxy/providers/registry.py` | `provider_registry.get("gemini")` returns the instance |
+| 13.4 | Register adapter in `proxy/providers/base.py` (`provider_registry`) | `provider_registry.get("gemini")` returns the instance |
 | 13.5 | Wire alias paths `/v1/proxy/gemini/v1beta/models/{model}:generateContent` matching the Gemini SDK shape | SDK roundtrip works |
 | 13.6 | Streaming SSE support if Gemini exposes it for thinking models | Streaming roundtrip works |
 | 13.7 | Tests `proxy/tests/test_gemini_provider.py` and integration in `test_proxy_route.py` | Coverage parity with OpenAI/Anthropic |
@@ -1021,7 +1023,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 **Test plan.**
 
-- Unit: extract_usage variants for Gemini; missing field; thinking off vs on.
+- Unit: `extract_reasoning_tokens` variants for Gemini; missing field; thinking off vs on.
 - Integration: full proxy roundtrip with mocked httpx.
 - Manual smoke: real Gemini API key roundtrip from local dev.
 
@@ -1033,7 +1035,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 **Rollback plan.** Remove the registry entry and the alias routes; revert PR. No migration.
 
-**Related files.** `proxy/providers/gemini.py`, `proxy/providers/registry.py`, `proxy/api/routes.py` (alias path), `proxy/constants.py`, `proxy/estimation/timing.py`, `proxy/tests/test_gemini_provider.py`, `README.md`, `docs/API.md`, `.env.example`.
+**Related files.** `proxy/providers/gemini.py`, `proxy/providers/base.py`, `proxy/api/routes.py` (alias path), `proxy/constants.py`, `proxy/estimation/timing.py`, `proxy/tests/test_gemini_provider.py`, `README.md`, `docs/API.md`, `.env.example`.
 
 **Risks.**
 
@@ -1434,7 +1436,7 @@ Top risks across the program, ordered by current priority. Each row carries: lik
 
 | # | Risk | L | I | Mitigation | Owner | Review by |
 |---|------|---|---|-----------|-------|-----------|
-| R1 | OpenAI / Anthropic / Gemini change reasoning-token field path silently | M | H | `extract_usage` defaults to 0 + structlog warning; weekly canary call against each provider's reasoning model; alarm on missing fields | maintainer | next Phase 12 close |
+| R1 | OpenAI / Anthropic / Gemini change reasoning-token field path silently | M | H | `extract_reasoning_tokens` defaults to 0 + structlog warning; weekly canary call against each provider's reasoning model; alarm on missing fields | maintainer | next Phase 12 close |
 | R2 | PALACE estimation accuracy degrades vs production traffic distribution | H | M | Eval harness on every model PR (Phase 12); domain-stratified Pass@1; calibration step refits CI bounds against last 30 days of production data | maintainer | Phase 12 |
 | R3 | Provider rate-limits Overage's verification calls (if Phase 12 ever calls live providers for calibration) | L | M | Calibration data is sourced from real customer traffic post-anonymisation, not from synthetic provider calls | maintainer | Phase 12 |
 | R4 | Branch protection accidentally relaxed (e.g., for emergency fix) and not re-tightened | L | H | §6.7 audit + post-PR check; Phase 7.6 cleanup workflow can scrub any drift | maintainer | quarterly |
@@ -1509,7 +1511,7 @@ Sorted alphabetically for the reviewer's benefit.
 - **PALACE** — Prompt And Language Assessed Computation Estimator. Framework for estimating reasoning tokens from a (prompt, answer) pair using a fine-tuned small LM. Reference: arXiv:2508.00912.
 - **PR_TITLE / BLANK (squash settings)** — repo settings ensuring the squash commit subject equals the PR title and the body is empty.
 - **Provider** — one of `openai`, `anthropic`, `gemini`. Each has an adapter in `proxy/providers/`.
-- **Provider registry** — `proxy/providers/registry.py::provider_registry`. Maps provider name to instance.
+- **Provider registry** — `proxy/providers/base.py::provider_registry`. Maps provider name to instance.
 - **Reasoning tokens** — hidden tokens generated by reasoning models (OpenAI o-series, Anthropic with extended thinking, Gemini Flash Thinking) but billed as output tokens. Reported in `usage.completion_tokens_details.reasoning_tokens` (OpenAI) or `usage.thinking_tokens` (Anthropic) or `usage_metadata.thoughts_token_count` (Gemini).
 - **Request ID** — UUID4 generated by `proxy/middleware/request_id.py`. Bound to structlog context; propagated to background tasks; returned in `X-Overage-Request-Id`.
 - **ruff** — Rust-implemented Python linter and formatter. Replaces flake8 + black + isort.
@@ -1530,6 +1532,7 @@ This section records every material change to this document and the program. New
 
 | Date | Event | Detail |
 |------|-------|--------|
+| 2026-05-10 | Phase 0.5 / 0.10 / Phase 1 ledger + dev schema | Alembic smoke in CI quickstart + `pytest proxy/tests/test_migrations_smoke.py`; development uses `alembic upgrade head` for file-backed SQLite/Postgres; ROADMAP §1.3 / Phase 1 / §3 matrix aligned with code (`LLMProvider`, `ProviderError`, headers, streaming, benchmark semantics). |
 | 2026-05-10 | Phase 0 ledger aligned with PR #47 | Merged `origin/main` into this branch; Phase 0 PR refs, subtasks 0.3–0.10, test plan, and **Recent landings** updated for `verify-python`, `foundation-quickstart` CI, request-id + invalid-key tests. |
 | 2026-05-10 | **`docs/ROADMAP.md` consolidated to single source of truth** | Replaced the prior 108-line product-only roadmap with this 1500+ line ledger. Stripped the phase tables from `docs/DEV_INFRASTRUCTURE.md` so it remains the canonical *account/platform inventory* but no longer competes with this doc on phase numbering. Updated `CONTRIBUTING.md` reference to point at this section. PR ref: this PR. |
 | 2026-05-10 | Phase 7.6 + 7.7 landed | `make strip-trailers` + `workflow_dispatch` workflow + `CONTRIBUTING.md` rewrite to forbid `--auto` and UI "Update branch". This PR. |

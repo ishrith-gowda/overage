@@ -46,6 +46,10 @@ make docker-up
 # 7. Apply database migrations
 make migrate
 
+# If you see "table ... already exists" on first `make migrate` after pulling Alembic:
+# older checkouts only used ORM `create_all`. Delete local `overage_dev.db` once and re-run
+# `make migrate` (or remove the conflicting SQLite file in `DATABASE_URL`).
+
 # 8. Verify everything works (Python 3.12+ required — `make verify-python` checks this)
 make check  # Runs verify-python, lint, typecheck, test, security
 ```

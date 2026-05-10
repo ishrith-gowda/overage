@@ -6,6 +6,7 @@ Reference: INSTRUCTIONS.md Section 8 (Testing Standards).
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -179,3 +180,64 @@ class TestGetProviderName:
     def test_returns_openai(self, provider: OpenAIProvider) -> None:
         """Provider name is 'openai'."""
         assert provider.get_provider_name() == "openai"
+
+
+class TestForwardStreamingRequest:
+    """Tests for OpenAIProvider.forward_streaming_request() (Phase 1.6)."""
+
+    @pytest.mark.asyncio
+    async def test_streaming_collects_usage_and_sets_ttft(
+        self,
+        provider: OpenAIProvider,
+        sample_request: ProviderRequest,
+    ) -> None:
+        """SSE lines with final usage chunk yield reasoning tokens and TTFT."""
+        stream_request = ProviderRequest(
+            provider=sample_request.provider,
+            model=sample_request.model,
+            messages=sample_request.messages,
+            raw_body={**sample_request.raw_body, "stream": True},
+            stream=True,
+            provider_api_key=sample_request.provider_api_key,
+        )
+
+        usage_payload = {
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30,
+                "completion_tokens_details": {"reasoning_tokens": 777},
+            }
+        }
+        usage_sse = f"data: {json.dumps(usage_payload)}\n"
+        sse_lines = [
+            'data: {"choices":[{"delta":{"content":"hello"}}]}\n',
+            usage_sse,
+            "data: [DONE]\n",
+        ]
+
+        class _FakeStreamBody:
+            def __init__(self, lines: list[str]) -> None:
+                self._lines = iter(lines)
+
+            async def aiter_lines(self) -> Any:
+                for line in self._lines:
+                    yield line
+
+            def raise_for_status(self) -> None:
+                return None
+
+        fake_stream = _FakeStreamBody(sse_lines)
+        stream_cm = MagicMock()
+        stream_cm.__aenter__ = AsyncMock(return_value=fake_stream)
+        stream_cm.__aexit__ = AsyncMock(return_value=False)
+        provider._get_client()
+        assert provider._client is not None
+        provider._client.stream = MagicMock(return_value=stream_cm)  # type: ignore[method-assign]
+
+        prov_res, chunks = await provider.forward_streaming_request(stream_request)
+
+        assert prov_res.is_streaming is True
+        assert prov_res.reasoning_tokens == 777
+        assert prov_res.ttft_ms is not None
+        assert len(chunks) > 0
