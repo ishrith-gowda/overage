@@ -2,8 +2,12 @@
 
 > **This is the single source of truth for how the Overage codebase works and how to contribute to it.**
 > Every developer (human or AI) must read this before writing any code.
-> For product requirements, see [PRD.md](./PRD.md).
-> For architecture details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+>
+> Sister documents (each is canonical for its slice):
+> - [`PRD.md`](./PRD.md) — product requirements, user stories, data models, API contracts.
+> - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system design, diagrams, technology decisions.
+> - [`docs/ROADMAP.md`](./docs/ROADMAP.md) — master phase ledger: what is being built, what is done, dependencies, acceptance criteria, definition of done, rollback. Start there for any non-trivial change.
+> - [`CONTRIBUTING.md`](./CONTRIBUTING.md) — local setup, commit format, PR + merge process.
 
 ---
 

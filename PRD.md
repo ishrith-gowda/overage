@@ -4,6 +4,8 @@
 > **Author:** Ishrith Gowda
 > **Last Updated:** March 31, 2026
 > **Status:** Active Development — 8-day MVP sprint
+>
+> **Delivery tracking.** This document defines product *behaviour* (what the system must do for users). Delivery — which behaviours have shipped, in which PR, with what acceptance criteria and definition of done — lives in [`docs/ROADMAP.md`](./docs/ROADMAP.md) §3 (PRD story → phase coverage matrix) and §5 (Master phase ledger). When a PR closes a Story listed below, the matching phase section in `docs/ROADMAP.md` is updated in the same PR.
 
 ---
 
