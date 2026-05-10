@@ -19,7 +19,9 @@ DASH_PORT := 8501
 # Phony targets (these are commands, not files)
 # ---------------------------------------------------------------------------
 .PHONY: install install-dev venv-fresh git-usb-clean lint format typecheck test test-fast test-unit \
-        test-integration security run run-dashboard docker-up docker-down \
+        test-integration security run run-dashboard run-doppler check-doppler secrets-verify sync-env-to-doppler \
+        codecov-local github-secret-codecov \
+        docker-up docker-down \
         docker-build migrate migrate-generate seed demo benchmark profile-tps report \
         clean pre-commit-install all check help
 
@@ -31,15 +33,15 @@ install: ## Install production dependencies
 	COPYFILE_DISABLE=1 $(PYTHON) -m pip install --upgrade pip setuptools wheel
 	COPYFILE_DISABLE=1 $(PYTHON) -m pip install -e .
 
-install-dev: ## Install all dependencies (production + development)
+install-dev: ## Install all dependencies (production + dev + ML + PDF reporting extras)
 	COPYFILE_DISABLE=1 $(PYTHON) -m pip install --upgrade pip setuptools wheel
-	COPYFILE_DISABLE=1 $(PYTHON) -m pip install -e ".[dev]"
+	COPYFILE_DISABLE=1 $(PYTHON) -m pip install -e ".[dev,ml,reporting]"
 
 venv-fresh: ## Recreate .venv (copies not symlinks; copyfile_disable helps exfat/usb on macos)
 	$(PYTHON) scripts/bootstrap_venv.py
 	mkdir -p "$$HOME/.cache/overage-pip"
 	env COPYFILE_DISABLE=1 PIP_CACHE_DIR=$$HOME/.cache/overage-pip .venv/bin/pip install --upgrade pip setuptools wheel
-	env COPYFILE_DISABLE=1 PIP_CACHE_DIR=$$HOME/.cache/overage-pip .venv/bin/pip install -e ".[dev]"
+	env COPYFILE_DISABLE=1 PIP_CACHE_DIR=$$HOME/.cache/overage-pip .venv/bin/pip install -e ".[dev,ml,reporting]"
 	@if [ "$$(uname)" = "Darwin" ]; then dot_clean -m .venv 2>/dev/null || true; fi
 	find .venv -name '._*' -type f -delete 2>/dev/null || true
 
@@ -113,6 +115,37 @@ run: ## Start the proxy server (port 8000, with hot reload)
 
 run-dashboard: ## Start the Streamlit dashboard (port 8501)
 	streamlit run $(DASH)/app.py --server.port $(DASH_PORT)
+
+# ---------------------------------------------------------------------------
+# Secrets (Doppler) — see docs/DOPPLER_1PASSWORD_SETUP.md and doppler.yaml
+# ---------------------------------------------------------------------------
+
+secrets-verify: ## Confirm Doppler CLI can inject env (requires doppler login + doppler.yaml)
+	@command -v doppler >/dev/null || (echo "Install Doppler: brew install dopplerhq/cli/doppler" && exit 1)
+	doppler run -- $(PYTHON) -c "import os; assert os.getenv('OVERAGE_ENV'), 'missing OVERAGE_ENV'; print('doppler ok:', os.getenv('OVERAGE_ENV'))"
+
+check-doppler: ## Run full make check with secrets from Doppler (overage/dev)
+	@command -v doppler >/dev/null || (echo "Install Doppler: brew install dopplerhq/cli/doppler" && exit 1)
+	doppler run -- $(MAKE) check
+
+run-doppler: ## Start proxy with env from Doppler
+	@command -v doppler >/dev/null || (echo "Install Doppler: brew install dopplerhq/cli/doppler" && exit 1)
+	doppler run -- $(MAKE) run
+
+sync-env-to-doppler: ## Upload local .env to Doppler dev config (use --silent; keep .env out of git)
+	@command -v doppler >/dev/null || (echo "Install Doppler: brew install dopplerhq/cli/doppler" && exit 1)
+	test -f .env || (echo "missing .env — copy from .env.example first" && exit 1)
+	doppler secrets upload .env --silent
+	@echo "Uploaded .env to Doppler (silent)."
+
+codecov-local: ## Generate coverage.xml and upload via codecov-cli (requires CODECOV_TOKEN in env)
+	@chmod +x scripts/codecov_local_upload.sh
+	./scripts/codecov_local_upload.sh
+
+github-secret-codecov: ## Set GitHub Actions CODECOV_TOKEN from env (requires gh + CODECOV_TOKEN)
+	@command -v gh >/dev/null || (echo "Install GitHub CLI: brew install gh" && exit 1)
+	@chmod +x scripts/github_secret_codecov.sh
+	./scripts/github_secret_codecov.sh
 
 # ---------------------------------------------------------------------------
 # Docker
