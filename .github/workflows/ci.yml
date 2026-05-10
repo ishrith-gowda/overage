@@ -204,7 +204,7 @@ jobs:
 
       - name: Run Trivy vulnerability scanner
         if: success()
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "overage:ci-${{ github.sha }}"
           format: "sarif"
