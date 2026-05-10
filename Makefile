@@ -9,7 +9,7 @@
 # Variables
 # ---------------------------------------------------------------------------
 PYTHON   := $(shell command -v python3.12 2>/dev/null || command -v python3 2>/dev/null || echo python3)
-# Prefer project venv so `make test` does not pick up a global pytest (e.g. conda + ddtrace on PATH).
+# Prefer project venv for pytest so `make test` does not pick up a global pytest (e.g. conda + ddtrace on PATH).
 TEST_PY  := $(if $(wildcard .venv/bin/python),.venv/bin/python,$(PYTHON))
 SRC      := proxy
 TESTS    := proxy/tests
@@ -21,7 +21,7 @@ DASH_PORT := 8501
 # Phony targets (these are commands, not files)
 # ---------------------------------------------------------------------------
 .PHONY: install install-dev venv-fresh git-usb-clean strip-macos-appledouble lint format typecheck test test-fast test-unit \
-        test-integration security run run-dashboard run-doppler check-doppler secrets-verify sync-env-to-doppler \
+        test-integration security smoke-live run run-dashboard run-doppler check-doppler secrets-verify sync-env-to-doppler \
         codecov-local github-secret-codecov verify-python verify-quickstart \
         docker-up docker-down \
         docker-build migrate migrate-generate seed demo benchmark profile-tps report \
@@ -118,9 +118,14 @@ coverage: strip-macos-appledouble ## Run tests with HTML coverage report
 # Security
 # ---------------------------------------------------------------------------
 
-security: strip-macos-appledouble ## Run security scans (bandit + safety)
+security: strip-macos-appledouble ## Run security scans (bandit + detect-secrets + pip-audit)
 	bandit -r $(SRC) -ll -ii --exclude $(TESTS)
-	perl -e 'alarm 120; exec @ARGV' safety check --output text || true
+	$(TEST_PY) -m detect_secrets scan --baseline .secrets.baseline
+	$(TEST_PY) -m pip_audit --progress-spinner off || true
+
+smoke-live: ## Maintainer live HTTP checks (requires running proxy; see scripts/maintainer_smoke_live.sh)
+	@chmod +x scripts/maintainer_smoke_live.sh
+	./scripts/maintainer_smoke_live.sh
 
 # ---------------------------------------------------------------------------
 # Running

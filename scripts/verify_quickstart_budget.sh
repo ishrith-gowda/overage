@@ -10,6 +10,9 @@ MAX_SECONDS="${QUICKSTART_MAX_SECONDS:-300}"
 python3 -m pip install --upgrade pip setuptools wheel
 COPYFILE_DISABLE=1 python3 -m pip install -e ".[dev]"
 
+# macOS exFAT/USB: AppleDouble sidecars break Alembic (null bytes in fake .py).
+find proxy proxy/tests dashboard -name '._*' -type f -delete 2>/dev/null || true
+
 export DD_TRACE_ENABLED="${DD_TRACE_ENABLED:-false}"
 export DD_INSTRUMENTATION_TELEMETRY_ENABLED="${DD_INSTRUMENTATION_TELEMETRY_ENABLED:-false}"
 
