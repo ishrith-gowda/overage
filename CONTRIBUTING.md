@@ -76,33 +76,48 @@ chore/update-dependencies          # Maintenance
 
 ## Commit Message Format
 
-We use [Conventional Commits](https://www.conventionalcommits.org/). Every commit message follows this format:
+We use [Conventional Commits](https://www.conventionalcommits.org/) with stricter project rules so that `git log` on `main` is a single-line, machine-greppable changelog.
 
 ```
-<type>: <short description>
+<type>(scope?): <lowercase imperative subject>
 ```
 
-**Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `chore`, `perf`, `style`
+### Hard rules (enforced by the `Commit Lint` workflow on every PR)
+
+- **Single line only.** No body, no blank line, no trailers.
+- **All lowercase** subject.
+- **No trailing period.**
+- **Subject length** ≤ 72 characters; PR title length ≤ 80.
+- **No trailers** of any kind: `Signed-off-by:`, `Co-authored-by:`, `Made-with:`, `Generated-by:` are all forbidden.
+- **One logical change per PR.** PRs are merged with **squash** only; the **PR title becomes the commit subject** on `main` (the body is stripped to BLANK by repo settings — verify in *Settings → General → Pull Requests*).
+
+**Allowed types:** `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `chore`, `perf`, `style`, `build`.
 
 ### Examples
 
 ```
-feat: add Anthropic provider adapter with thinking token extraction
-feat: implement timing-based token estimation for o3 model
-fix: handle missing reasoning_tokens field in OpenAI response
-fix: prevent division by zero in discrepancy percentage calculation
+feat: add anthropic provider adapter with thinking token extraction
+feat(estimation): implement timing-based token estimation for o3
+fix: handle missing reasoning_tokens field in openai response
+fix(proxy): prevent division by zero in discrepancy percentage
 refactor: extract provider registration into factory pattern
-refactor: split estimation module into palace, timing, aggregator
-docs: add sequence diagram to ARCHITECTURE.md
-docs: update quickstart instructions for Docker setup
-test: add parametrized tests for TPS lookup table
-test: add integration tests for proxy streaming endpoint
-ci: add mypy strict mode to CI pipeline
-ci: configure Codecov upload on main branch pushes
-chore: update FastAPI to 0.115.6
-chore: pin all dependencies in pyproject.toml
+docs: add sequence diagram to architecture.md
+test: add parametrized tests for tps lookup table
+ci: add commit-message lint workflow
+chore: update fastapi to 0.115.6
 perf: reduce proxy overhead by removing redundant header copy
 ```
+
+### Local enforcement
+
+Activate the project commit template once per clone so `git commit` reminds you of the rules:
+
+```bash
+git config commit.template .gitmessage
+git config core.hooksPath .githooks   # also strips forbidden trailers
+```
+
+If you need to clean up multi-line dev commits before opening a PR, squash them locally with `git rebase -i origin/main`. The lint workflow only **blocks** on PR title format; per-commit warnings are advisory because squash normalises them anyway.
 
 ---
 
@@ -130,11 +145,11 @@ perf: reduce proxy overhead by removing redundant header copy
    ```
    Fill in the PR template completely.
 
-5. **Wait for CI** to pass (all jobs must be green).
+5. **Wait for CI** to pass — all required checks (`Lint`, `Type Check`, `Test`, `Security Scan`, `Docker Build`, `CodeQL Analysis`, `Dependency Review`, `Commit Lint`) must be green; `main` is branch-protected and rejects merges otherwise.
 
 6. **Request review** (or self-merge if solo development with CI green).
 
-7. **Squash merge** into `main`. Delete the feature branch.
+7. **Squash merge** into `main` (`gh pr merge <num> --squash`). The repo is configured so the merge commit subject = PR title and the body is BLANK; never pass `--body` or `--subject "<multi-line>"` to `gh pr merge`. Branch deletion is automatic.
 
 ---
 

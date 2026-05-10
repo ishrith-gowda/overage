@@ -1,10 +1,13 @@
 #!/usr/bin/env sh
-# Strip IDE-injected trailers so messages stay single-line per project policy.
-# Enable: git config core.hooksPath .githooks
+# Strip IDE/agent-injected trailers so dev commits stay clean per project policy.
+# The PR title is the source of truth on `main` (squash settings = PR_TITLE + BLANK),
+# but stripping trailers locally keeps `git log` on feature branches readable.
+# Enable once per clone: git config core.hooksPath .githooks
 msg=${1:-}
 [ -z "$msg" ] || [ ! -f "$msg" ] && exit 0
 tmp=$(mktemp)
-grep -v '^Made-with:' "$msg" | grep -v '^Co-authored-by:' >"$tmp" || true
+# Forbidden trailers (case-insensitive, case-preserving on the right-hand side).
+grep -viE '^(made-with|co-authored-by|signed-off-by|generated-by|reported-by|reviewed-by|tested-by):' "$msg" >"$tmp" || true
 cmp -s "$msg" "$tmp" || mv "$tmp" "$msg"
 rm -f "$tmp"
 exit 0
