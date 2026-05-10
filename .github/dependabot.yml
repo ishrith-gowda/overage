@@ -19,7 +19,6 @@ updates:
       - "automated"
     commit-message:
       prefix: "chore(deps)"
-      include: "scope"
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]
@@ -36,7 +35,6 @@ updates:
       - "automated"
     commit-message:
       prefix: "ci(deps)"
-      include: "scope"
 
   - package-ecosystem: "docker"
     directory: "/"
@@ -49,4 +47,3 @@ updates:
       - "automated"
     commit-message:
       prefix: "chore(docker)"
-      include: "scope"
