@@ -31,7 +31,12 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     PIP_PREFER_BINARY=1
 
-# Full package tree: setuptools must see real sources (partial copy can hang "build wheel" in CI).
+# CRITICAL: scope the build to /build. Without WORKDIR, COPY targets `/` (root) and
+# `pip install .` later runs `setuptools.find_packages` from `/`, which os.walk()'s the
+# whole rootfs (incl. /opt/venv/lib/python3.12/site-packages/, /usr/, /var/) and
+# hangs "Getting requirements to build wheel" for >60 min on slim images.
+WORKDIR /build
+
 # pyproject is copied first; proxy/ is a separate layer so dep-only edits still cache well.
 COPY pyproject.toml README.md ./
 COPY proxy/ ./proxy/
@@ -40,18 +45,20 @@ COPY proxy/ ./proxy/
 ARG INSTALL_ML=true
 ARG OVERAGE_DOCKER_MINIMAL=false
 # Install scientific stack as wheels *before* `pip install .` so pip never falls through to
-# multi-hour sdist compiles of numpy/scipy/scikit-learn on slim images (this caused ~45m+ hangs).
+# multi-hour sdist compiles of numpy/scipy/scikit-learn on slim images.
+# `--no-build-isolation` reuses the venv (already has setuptools/wheel) — avoids spinning up a
+# second isolated build env per install (faster + simpler).
 # Specifiers match [project] dependencies in pyproject.toml.
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip setuptools wheel && \
     pip install --only-binary=:all: \
         "numpy>=2.1,<3" "scipy>=1.14,<2" "scikit-learn>=1.6,<2" && \
     if [ "$OVERAGE_DOCKER_MINIMAL" = "true" ]; then \
-      pip install . ; \
+      pip install --no-build-isolation . ; \
     elif [ "$INSTALL_ML" = "true" ]; then \
-      pip install ".[ml,reporting]"; \
+      pip install --no-build-isolation ".[ml,reporting]"; \
     else \
-      pip install ".[reporting]"; \
+      pip install --no-build-isolation ".[reporting]"; \
     fi
 
 # ---------------------------------------------------------------------------
