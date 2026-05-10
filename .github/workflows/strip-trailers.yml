@@ -1,0 +1,155 @@
+# .github/workflows/strip-trailers.yml — manual scrubber for forbidden commit trailers
+# Project rule (docs/ROADMAP.md §7.6, CONTRIBUTING.md): every commit on `main` is a single
+# subject line. GitHub's squash-merge engine sometimes injects Co-authored-by:/Signed-off-by:
+# trailers anyway. This workflow lets the maintainer rewrite a range of commits to drop any
+# such trailers and force-push the result.
+#
+# Trigger manually from Actions → "Strip Trailers" → "Run workflow", or via:
+#   gh workflow run strip-trailers.yml -f since=<ref> -f ref=main -f confirm=YES
+#
+# Branch protection on `main` blocks force-pushes by default (allow_force_pushes=false). This
+# workflow flips that to true for the duration of the push, then restores it. The maintainer
+# must run with `confirm=YES` to actually push; otherwise the rewrite stops at the dry-run
+# stage and reports the diff.
+
+name: Strip Trailers
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Commit/tag/branch to rewrite *from* (exclusive). Default: latest pre-rewrite-* tag, else HEAD~10."
+        required: false
+        default: ""
+      ref:
+        description: "Branch to rewrite. Default: main."
+        required: false
+        default: "main"
+      confirm:
+        description: 'Type "YES" to actually force-push. Anything else = dry run.'
+        required: true
+        default: "NO"
+
+permissions:
+  contents: write
+  administration: write
+
+jobs:
+  strip:
+    name: Rewrite and (optionally) force-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "overage-history-cleaner"
+          git config user.email "actions@github.com"
+
+      - name: Resolve range
+        id: range
+        run: |
+          since="${{ inputs.since }}"
+          if [ -z "$since" ]; then
+            since=$(git tag --list 'pre-rewrite-*' --sort=-creatordate | head -n1 || true)
+          fi
+          if [ -z "$since" ]; then
+            since="HEAD~10"
+          fi
+          echo "since=$since" >> "$GITHUB_OUTPUT"
+
+      - name: Dry-run rewrite locally
+        env:
+          ASSUME_YES: "1"
+        run: |
+          set -e
+          before=$(git rev-parse "${{ inputs.ref }}")
+          ./scripts/strip_trailers.sh "${{ steps.range.outputs.since }}" "${{ inputs.ref }}"
+          after=$(git rev-parse "${{ inputs.ref }}")
+          echo "before=$before"
+          echo "after=$after"
+          if [ "$before" = "$after" ]; then
+            echo "::notice::Range was already clean; nothing to push."
+          fi
+          git --no-pager log --format='%h  %s' "${{ steps.range.outputs.since }}..${{ inputs.ref }}"
+
+      - name: Stop here if not confirmed
+        if: ${{ inputs.confirm != 'YES' }}
+        run: |
+          echo "::warning::Dry run only (confirm != YES). Re-run with confirm=YES to force-push."
+
+      - name: Allow force pushes on protected branch
+        if: ${{ inputs.confirm == 'YES' && inputs.ref == 'main' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X PUT repos/${{ github.repository }}/branches/${{ inputs.ref }}/protection \
+            -H "Accept: application/vnd.github+json" \
+            --input - <<'EOF'
+          {
+            "required_status_checks": {
+              "strict": true,
+              "contexts": [
+                "Lint",
+                "Type Check",
+                "Test",
+                "Security Scan",
+                "Docker Build",
+                "CodeQL Analysis",
+                "Dependency Review",
+                "PR Title (final squash subject)"
+              ]
+            },
+            "enforce_admins": false,
+            "required_pull_request_reviews": null,
+            "restrictions": null,
+            "required_linear_history": true,
+            "allow_force_pushes": true,
+            "allow_deletions": false,
+            "required_conversation_resolution": true,
+            "lock_branch": false,
+            "allow_fork_syncing": false
+          }
+          EOF
+
+      - name: Force-push rewritten ref
+        if: ${{ inputs.confirm == 'YES' }}
+        run: git push --force-with-lease origin ${{ inputs.ref }}
+
+      - name: Restore force-push block
+        if: ${{ always() && inputs.confirm == 'YES' && inputs.ref == 'main' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X PUT repos/${{ github.repository }}/branches/${{ inputs.ref }}/protection \
+            -H "Accept: application/vnd.github+json" \
+            --input - <<'EOF'
+          {
+            "required_status_checks": {
+              "strict": true,
+              "contexts": [
+                "Lint",
+                "Type Check",
+                "Test",
+                "Security Scan",
+                "Docker Build",
+                "CodeQL Analysis",
+                "Dependency Review",
+                "PR Title (final squash subject)"
+              ]
+            },
+            "enforce_admins": false,
+            "required_pull_request_reviews": null,
+            "restrictions": null,
+            "required_linear_history": true,
+            "allow_force_pushes": false,
+            "allow_deletions": false,
+            "required_conversation_resolution": true,
+            "lock_branch": false,
+            "allow_fork_syncing": false
+          }
+          EOF
