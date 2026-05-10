@@ -1,0 +1,15 @@
+# Overage commit template — single-line subject only.
+# Format: <type>(scope?): <lowercase imperative subject>
+# Types:  feat fix docs refactor test ci chore perf style build
+# Rules:  all lowercase, no period at end, <= 72 chars, single line, no body, no trailers.
+#         (PR_TITLE becomes the squash subject on main; BLANK strips bodies/trailers.)
+#
+# Examples:
+#   feat: add anthropic provider adapter
+#   fix(proxy): handle missing reasoning_tokens
+#   ci: enforce conventional commits via commit-lint workflow
+#
+# Forbidden: Signed-off-by:, Co-authored-by:, Made-with:, Generated-by:.
+#
+# Activate this template once per clone:
+#   git config commit.template .gitmessage
