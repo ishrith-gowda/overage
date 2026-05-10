@@ -68,7 +68,7 @@ ml = [
 ]
 dev = [
     # --- Linting & formatting (single tool replaces flake8+black+isort) ---
-    "ruff>=0.8,<1.0",
+    "ruff>=0.15.12,<1.0",
     # --- Static type checking ---
     "mypy>=1.13,<2.0",
     # --- Testing ---
