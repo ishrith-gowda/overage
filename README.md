@@ -296,17 +296,21 @@ See [INSTRUCTIONS.md](./INSTRUCTIONS.md) for the complete environment variable r
 ## Development
 
 ```bash
-# Run all checks (lint + typecheck + test)
+# Run all checks (lint + typecheck + test + security: bandit, detect-secrets baseline, pip-audit)
 make check
 
-# Run tests only
+# Run tests only (prefers `.venv/bin/python -m pytest` when `.venv` exists)
 make test
 
 # Format code
 make format
 
 # Generate a new database migration
-make migration
+make migrate-generate MSG="describe change"
+
+# Maintainer live smoke (terminal A: make run; terminal B: export keys, then:)
+#   OVERAGE_API_KEY=ovg_live_... OPENAI_API_KEY=sk-... make smoke-live
+make smoke-live
 
 # See all available commands
 make help

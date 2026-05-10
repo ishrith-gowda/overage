@@ -9,6 +9,8 @@
 # Variables
 # ---------------------------------------------------------------------------
 PYTHON   := $(shell command -v python3.12 2>/dev/null || command -v python3 2>/dev/null || echo python3)
+# Prefer project venv for pytest so `make test` does not pick up a global pytest (e.g. conda + ddtrace on PATH).
+TEST_PY  := $(if $(wildcard .venv/bin/python),.venv/bin/python,$(PYTHON))
 SRC      := proxy
 TESTS    := proxy/tests
 DASH     := dashboard
@@ -18,8 +20,8 @@ DASH_PORT := 8501
 # ---------------------------------------------------------------------------
 # Phony targets (these are commands, not files)
 # ---------------------------------------------------------------------------
-.PHONY: install install-dev venv-fresh git-usb-clean lint format typecheck test test-fast test-unit \
-        test-integration security run run-dashboard run-doppler check-doppler secrets-verify sync-env-to-doppler \
+.PHONY: install install-dev venv-fresh git-usb-clean strip-macos-appledouble lint format typecheck test test-fast test-unit \
+        test-integration security smoke-live run run-dashboard run-doppler check-doppler secrets-verify sync-env-to-doppler \
         codecov-local github-secret-codecov verify-python verify-quickstart \
         docker-up docker-down \
         docker-build migrate migrate-generate seed demo benchmark profile-tps report \
@@ -49,6 +51,9 @@ venv-fresh: ## Recreate .venv (copies not symlinks; copyfile_disable helps exfat
 git-usb-clean: ## Delete macos appledouble ._ files under .git (fixes non-monotonic pack index on exfat)
 	find .git -name '._*' -type f -delete 2>/dev/null || true
 
+strip-macos-appledouble: ## Remove AppleDouble sidecars under source trees (Alembic/bandit choke on exFAT/USB)
+	find $(SRC) $(TESTS) $(DASH) -name '._*' -type f -delete 2>/dev/null || true
+
 strip-trailers: ## Rewrite a commit range to drop forbidden trailers and bodies (interactive; does not push)
 	./scripts/strip_trailers.sh $(SINCE) $(REF)
 
@@ -60,7 +65,7 @@ pre-commit-install: ## Install pre-commit hooks and run initial check
 # Code Quality
 # ---------------------------------------------------------------------------
 
-lint: ## Run linter (ruff check + format verification)
+lint: strip-macos-appledouble ## Run linter (ruff check + format verification)
 	ruff check $(SRC) $(TESTS) $(DASH)
 	ruff format --check $(SRC) $(TESTS) $(DASH)
 
@@ -82,8 +87,8 @@ verify-quickstart: ## Run Phase 0.10 install + test_api gate (optional local tim
 # Testing
 # ---------------------------------------------------------------------------
 
-test: ## Run all tests with coverage (floor matches .github/workflows/ci.yml)
-	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false pytest $(TESTS) \
+test: strip-macos-appledouble ## Run all tests with coverage (floor matches .github/workflows/ci.yml)
+	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false $(TEST_PY) -m pytest $(TESTS) \
 		-v \
 		--cov=$(SRC) \
 		--cov-report=term-missing \
@@ -91,17 +96,17 @@ test: ## Run all tests with coverage (floor matches .github/workflows/ci.yml)
 		--timeout=60 \
 		-m "not slow"
 
-test-fast: ## Run tests, stop on first failure, no coverage (fast iteration)
-	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false pytest $(TESTS) -v -x --no-cov --timeout=30
+test-fast: strip-macos-appledouble ## Run tests, stop on first failure, no coverage (fast iteration)
+	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false $(TEST_PY) -m pytest $(TESTS) -v -x --no-cov --timeout=30
 
-test-unit: ## Run unit tests only
-	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false pytest $(TESTS)/unit -v --no-cov --timeout=30
+test-unit: strip-macos-appledouble ## Run unit tests only
+	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false $(TEST_PY) -m pytest $(TESTS)/unit -v --no-cov --timeout=30
 
-test-integration: ## Run integration tests only
-	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false pytest $(TESTS) -v -m integration --no-cov --timeout=120
+test-integration: strip-macos-appledouble ## Run integration tests only
+	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false $(TEST_PY) -m pytest $(TESTS) -v -m integration --no-cov --timeout=120
 
-coverage: ## Run tests with HTML coverage report
-	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false pytest $(TESTS) \
+coverage: strip-macos-appledouble ## Run tests with HTML coverage report
+	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false $(TEST_PY) -m pytest $(TESTS) \
 		-v \
 		--cov=$(SRC) \
 		--cov-report=term-missing \
@@ -113,9 +118,14 @@ coverage: ## Run tests with HTML coverage report
 # Security
 # ---------------------------------------------------------------------------
 
-security: ## Run security scans (bandit + safety)
+security: strip-macos-appledouble ## Run security scans (bandit + detect-secrets + pip-audit)
 	bandit -r $(SRC) -ll -ii --exclude $(TESTS)
-	safety check --output text || true
+	$(TEST_PY) -m detect_secrets scan --baseline .secrets.baseline
+	$(TEST_PY) -m pip_audit --progress-spinner off || true
+
+smoke-live: ## Maintainer live HTTP checks (requires running proxy; see scripts/maintainer_smoke_live.sh)
+	@chmod +x scripts/maintainer_smoke_live.sh
+	./scripts/maintainer_smoke_live.sh
 
 # ---------------------------------------------------------------------------
 # Running

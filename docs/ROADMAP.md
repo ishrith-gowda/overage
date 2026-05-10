@@ -1280,7 +1280,8 @@ Every phase that changes dependencies, runtime, or surface area must pass:
 - **CodeQL** Analysis green (Python query suite).
 - **Trivy** image scan green at `CRITICAL,HIGH` for the proxy image.
 - **Dependency Review** action on every PR; advisories triaged within 7 days.
-- **Safety** advisory check (advisory-only — does not block, but is reviewed weekly).
+- **pip-audit** on the **installed** environment (`pip install -e ".[dev]"` then `pip-audit` in CI; `make security` uses the active interpreter’s site-packages). Non-blocking on PRs via `continue-on-error` / `|| true` until triaged.
+- **Safety** CLI (PyUp) was evaluated; `safety scan` in v3.x requires interactive login for the hosted DB on unattended runners, so the repo standardises on **pip-audit** for the same advisory role. Revisit if Safety ships a headless CI mode.
 - **detect-secrets** baseline maintained; new secrets require explicit baseline update + rationale in PR.
 
 Secret-rotation policy: any secret that ever appears in chat, screenshots, logs, or non-secret-store files is rotated immediately at the provider. Doppler is the source of truth; 1Password holds the human-readable backup ("Overage — Doppler dev snapshot").

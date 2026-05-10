@@ -1801,7 +1801,9 @@ All commands are available via `make`. Run `make help` for descriptions.
 | `make test-unit` | Run unit tests only | Unit test results |
 | `make test-integration` | Run integration tests only | Integration test results |
 | `make coverage` | Run tests with HTML coverage report | `htmlcov/index.html` generated |
-| `make security` | Run bandit security scan | Security report |
+| `make security` | Run bandit, `detect-secrets` (baseline), and `pip-audit` on the active Python env | Reports (`pip-audit` advisories are non-blocking via `\|\| true`) |
+| `make strip-macos-appledouble` | Delete macOS AppleDouble `._*` under `proxy/`, `proxy/tests/`, `dashboard/` | Prevents Alembic/bandit failures on exFAT/USB |
+| `make smoke-live` | Maintainer live HTTP checks (`scripts/maintainer_smoke_live.sh`; needs `make run` + optional provider keys) | Curl output |
 | `make check` | Run lint + typecheck + test (full CI locally) | All checks pass/fail |
 | `make migrate` | Apply pending Alembic migrations | `Running upgrade` messages |
 | `make migration` | Auto-generate a new migration | `Generating ...versions/<hash>.py` |
