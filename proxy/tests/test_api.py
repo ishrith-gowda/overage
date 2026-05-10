@@ -6,6 +6,7 @@ Reference: INSTRUCTIONS.md Section 8 (Testing Standards).
 
 from __future__ import annotations
 
+import uuid
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -37,6 +38,27 @@ class TestHealthEndpoint:
         """Health endpoint does not require an API key."""
         response = await client.get("/health")
         assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_health_echoes_x_request_id_header(self, client: httpx.AsyncClient) -> None:
+        """Middleware returns a UUID4 X-Request-ID on every response (Phase 0.3)."""
+        response = await client.get("/health")
+        assert response.status_code == 200
+        raw = response.headers.get("X-Request-ID")
+        assert raw is not None
+        parsed = uuid.UUID(raw)
+        assert parsed.version == 4
+
+    @pytest.mark.asyncio
+    async def test_health_echoes_client_x_request_id(
+        self,
+        client: httpx.AsyncClient,
+    ) -> None:
+        """Middleware echoes a client-provided X-Request-ID when present."""
+        client_rid = "a0a0a0a0-aaaa-4444-8888-bbbbbbbbbbbb"
+        response = await client.get("/health", headers={"X-Request-ID": client_rid})
+        assert response.status_code == 200
+        assert response.headers.get("X-Request-ID") == client_rid
 
 
 class TestAuthEndpoints:
@@ -110,6 +132,45 @@ class TestCallsEndpoints:
         """GET /v1/calls without API key returns 401."""
         response = await client.get("/v1/calls")
         assert response.status_code == 401
+        header_rid = response.headers.get("X-Request-ID")
+        body_rid = response.json().get("request_id")
+        assert header_rid is not None
+        assert body_rid is not None
+        assert header_rid == body_rid
+
+    @pytest.mark.asyncio
+    async def test_list_calls_unknown_api_key_returns_401(
+        self,
+        client: httpx.AsyncClient,
+    ) -> None:
+        """GET /v1/calls with a non-empty key not in the DB returns 401 (Phase 0.6)."""
+        response = await client.get(
+            "/v1/calls",
+            headers={
+                "X-API-Key": "ovg_live_notindb_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            },
+        )
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_list_calls_401_matches_x_request_id_header_and_body(
+        self,
+        client: httpx.AsyncClient,
+    ) -> None:
+        """Auth errors echo the same request_id in JSON and X-Request-ID (middleware wiring)."""
+        response = await client.get(
+            "/v1/calls",
+            headers={
+                "X-API-Key": "ovg_live_notindb_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+            },
+        )
+        assert response.status_code == 401
+        header_rid = response.headers.get("X-Request-ID")
+        body_rid = response.json().get("request_id")
+        assert header_rid is not None
+        assert body_rid is not None
+        assert header_rid == body_rid
+        assert uuid.UUID(str(body_rid)).version == 4
 
     @pytest.mark.asyncio
     async def test_list_calls_returns_empty_for_new_user(

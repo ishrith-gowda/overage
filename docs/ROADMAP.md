@@ -29,6 +29,7 @@ When a phase completes, the agent updates this table, the **Status** field of th
 
 | Date | Phase / Subtask | PR | Commit | Note |
 |------|-----------------|----|--------|------|
+| 2026-05-10 | Phase 0 verification (ledger refresh) | #47 | merged | `verify-python`, auth/request-id tests, CI `foundation-quickstart`, ddtrace-safe pytest |
 | 2026-05-10 | 7.6 / 7.7 | #45 | tip of `docs/cursor-rule-contributing-workflow` | trailer-cleanup tooling, manual-merge doc |
 | 2026-05-10 | 7.5 | force-push (no PR) | `pre-rewrite-2026-05-10` → new `main` tip | history rewrite of 23 dirty commits, no force-push allowed since |
 | 2026-05-10 | 7.4 | #44 | `c62669d` | dependabot scope dedup |
@@ -314,7 +315,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 **Status.** `done` (closed 2026-04-07).
 
-**PR refs.** [#14](https://github.com/ishrith-gowda/overage/pull/14) (merged 2026-04-07).
+**PR refs.** [#14](https://github.com/ishrith-gowda/overage/pull/14) (merged 2026-04-07); post-close verification [#47](https://github.com/ishrith-gowda/overage/pull/47) (merged 2026-05-10).
 
 **PRD coverage.** Story 7 (skeleton — quickstart authentication endpoints exist; full <5min onboarding closed by Phase 1).
 
@@ -326,18 +327,18 @@ This is the long section. Each phase has the same shape; copy it as a template w
 |----|---------|----------------------|--------|
 | 0.1 | Bootstrap `pyproject.toml` with FastAPI + uvicorn + SQLAlchemy 2.0 async + httpx + structlog + Pydantic v2 | `pip install -e .` succeeds on Python 3.12 | done |
 | 0.2 | Add `proxy/main.py` FastAPI app factory and `proxy/config.py` pydantic-settings | `uvicorn proxy.main:app` starts and `GET /health` returns 200 | done |
-| 0.3 | Wire structlog with request-ID middleware in `proxy/middleware/request_id.py` | Each request log line includes `request_id` UUID4 | done |
-| 0.4 | Define ORM models in `proxy/storage/models.py` matching PRD §4 | `from proxy.storage.models import User, APIKey, APICallLog, EstimationResult, DiscrepancyAlert` succeeds | done |
+| 0.3 | Wire structlog with request-ID middleware in `proxy/middleware/request_id.py` | `X-Request-ID` response header is UUID4; 401 responses echo the same id in JSON `request_id` — `proxy/tests/test_api.py::TestHealthEndpoint` and `TestCallsEndpoints` 401 tests | done |
+| 0.4 | Define ORM models in `proxy/storage/models.py` matching PRD §4 | `from proxy.storage.models import User, APIKey, APICallLog, EstimationResult, DiscrepancyAlert` succeeds on **Python 3.12+** (`requires-python` in `pyproject.toml`); `make verify-python` exits 0 | done |
 | 0.5 | Set up Alembic in `proxy/storage/migrations/` | `alembic upgrade head` builds the schema on a fresh SQLite | done |
-| 0.6 | Auth endpoints `POST /v1/auth/register` and `POST /v1/auth/apikey` | Curl roundtrip returns a `ovg_live_…` key once and 401 thereafter for unknown keys | done |
+| 0.6 | Auth endpoints `POST /v1/auth/register` and `POST /v1/auth/apikey` | Register returns `ovg_live_…` once; missing `X-API-Key`, unknown raw key, and non-DB hashes return **401** — `test_list_calls_requires_auth`, `test_list_calls_unknown_api_key_returns_401`, `test_post_apikey_requires_auth` | done |
 | 0.7 | Custom exception hierarchy in `proxy/exceptions.py` | `OverageError` with subclasses; global FastAPI exception handler maps to `ErrorResponse` | done |
-| 0.8 | First CI workflow `ci.yml` with lint + type-check + test jobs | Green on PR #14 | done |
-| 0.9 | Makefile with `install-dev`, `lint`, `typecheck`, `test`, `run`, `migrate`, `check` | `make check` runs end-to-end locally | done |
-| 0.10 | `README.md` quickstart that boots the proxy in <5 minutes | Timed by the maintainer; recorded in PR description | done |
+| 0.8 | First CI workflow `ci.yml` with lint + type-check + test jobs | `ci.yml`: lint → typecheck → test; **foundation-quickstart** (Phase 0.10); security; Docker build (after test + foundation); workflow `env` sets `DD_TRACE_ENABLED=false` for stable pytest | done |
+| 0.9 | Makefile with `install-dev`, `lint`, `typecheck`, `test`, `run`, `migrate`, `check` | `make check` runs **verify-python** (3.12+), lint, typecheck, test, security | done |
+| 0.10 | `README.md` quickstart that boots the proxy in <5 minutes | CI job **`foundation-quickstart`** runs `scripts/verify_quickstart_budget.sh`: `pip install -e ".[dev]"` + `pytest proxy/tests/test_api.py` completes in **≤300s** on `ubuntu-latest`; README describes minimal vs `make install-dev` full stack | done |
 
 **Test plan.**
 
-- Unit: `proxy/tests/test_api.py::test_health_returns_healthy_when_db_reachable` and the auth happy/sad paths.
+- Unit / API integration: `proxy/tests/test_api.py` — `TestHealthEndpoint::test_health_returns_200_and_status`, request-ID header tests, auth register/key paths, **unknown API key 401** tests (`test_list_calls_unknown_api_key_returns_401`, `test_list_calls_401_matches_x_request_id_header_and_body`).
 - Integration: implicit — `pytest proxy/tests/` boots the FastAPI test client and exercises the full router.
 - Latency: not applicable yet (no provider call path).
 - Manual smoke: `curl localhost:8000/health` after `make run`.
@@ -352,7 +353,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 **Rollback plan.** Not applicable. This phase is the floor; rollback would mean abandoning the project. If a foundational choice (e.g. SQLAlchemy 2.0 vs Tortoise) needs to change, it ships as a separate refactor PR with its own phase rather than reverting Phase 0.
 
-**Related files.** `pyproject.toml`, `proxy/main.py`, `proxy/config.py`, `proxy/exceptions.py`, `proxy/storage/`, `proxy/middleware/request_id.py`, `proxy/api/auth.py`, `Makefile`, `.github/workflows/ci.yml`, `README.md`, `INSTRUCTIONS.md`.
+**Related files.** `pyproject.toml`, `proxy/main.py`, `proxy/config.py`, `proxy/exceptions.py`, `proxy/storage/`, `proxy/middleware/request_id.py`, `proxy/api/auth.py`, `Makefile`, `scripts/verify_python_version.py`, `scripts/verify_quickstart_budget.sh`, `.github/workflows/ci.yml`, `README.md`, `INSTRUCTIONS.md`.
 
 **Risks (closed).**
 
@@ -1529,6 +1530,7 @@ This section records every material change to this document and the program. New
 
 | Date | Event | Detail |
 |------|-------|--------|
+| 2026-05-10 | Phase 0 ledger aligned with PR #47 | Merged `origin/main` into this branch; Phase 0 PR refs, subtasks 0.3–0.10, test plan, and **Recent landings** updated for `verify-python`, `foundation-quickstart` CI, request-id + invalid-key tests. |
 | 2026-05-10 | **`docs/ROADMAP.md` consolidated to single source of truth** | Replaced the prior 108-line product-only roadmap with this 1500+ line ledger. Stripped the phase tables from `docs/DEV_INFRASTRUCTURE.md` so it remains the canonical *account/platform inventory* but no longer competes with this doc on phase numbering. Updated `CONTRIBUTING.md` reference to point at this section. PR ref: this PR. |
 | 2026-05-10 | Phase 7.6 + 7.7 landed | `make strip-trailers` + `workflow_dispatch` workflow + `CONTRIBUTING.md` rewrite to forbid `--auto` and UI "Update branch". This PR. |
 | 2026-05-10 | Phase 7.5 — history rewrite | Force-pushed `main` after rewriting 23 dirty commits between `bf748dc..pre-rewrite-2026-05-10`. Safety tag `pre-rewrite-2026-05-10` retained indefinitely. No PR (force-push). |

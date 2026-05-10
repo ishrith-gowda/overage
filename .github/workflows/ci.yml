@@ -1,6 +1,8 @@
 # .github/workflows/ci.yml — Main CI pipeline
-# Runs on every PR and push to main (plus weekly schedule). Jobs form a chain:
-#   lint → typecheck → test (+ bandit/safety in parallel) → docker-build (+ Trivy SARIF)
+# Runs on every PR and push to main (plus weekly schedule). Rough shape:
+#   lint → typecheck → test;  security (parallel after lint);
+#   foundation-quickstart (parallel; Phase 0.10 install + test_api gate);
+#   docker-build (+ Trivy) after test + foundation-quickstart succeed.
 # If lint fails, every job that needs lint (or needs a downstream job) is skipped
 # until the failure is fixed — that is normal GitHub Actions behavior, not "optional" CI.
 # Reference: INSTRUCTIONS.md Section 9 (Git Workflow)
@@ -33,6 +35,8 @@ env:
   # Disable ML model loading in CI (not needed for proxy tests)
   ESTIMATION_ENABLED: "false"
   DATABASE_URL: "sqlite+aiosqlite:///./test.db"
+  DD_TRACE_ENABLED: "false"
+  DD_INSTRUMENTATION_TELEMETRY_ENABLED: "false"
 
 jobs:
   # -----------------------------------------------------------------------
@@ -150,6 +154,30 @@ jobs:
           handle_no_reports_found: true
 
   # -----------------------------------------------------------------------
+  # Foundation quickstart — Phase 0.10 machine gate (pip install .[dev] + API tests ≤300s)
+  # -----------------------------------------------------------------------
+  foundation-quickstart:
+    name: Foundation quickstart
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: pip-foundation-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-foundation-${{ runner.os }}-
+
+      - name: Story 7 smoke (install + pytest proxy/tests/test_api.py)
+        run: chmod +x scripts/verify_quickstart_budget.sh && ./scripts/verify_quickstart_budget.sh
+
+  # -----------------------------------------------------------------------
   # Job 4: Security — bandit + safety (runs in parallel with test)
   # -----------------------------------------------------------------------
   security:
@@ -179,7 +207,7 @@ jobs:
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, foundation-quickstart]
     # Wheel-first installs should finish in <15m when GHA layer cache is warm; allow cold cache + Trivy.
     timeout-minutes: 60
     # Runs after tests on every workflow trigger (PR and push to main).

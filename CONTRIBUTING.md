@@ -46,8 +46,8 @@ make docker-up
 # 7. Apply database migrations
 make migrate
 
-# 8. Verify everything works
-make check  # Runs lint + typecheck + test + security
+# 8. Verify everything works (Python 3.12+ required — `make verify-python` checks this)
+make check  # Runs verify-python, lint, typecheck, test, security
 ```
 
 If `make check` passes, you're ready to contribute.
