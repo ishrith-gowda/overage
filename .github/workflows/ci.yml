@@ -178,7 +178,7 @@ jobs:
         run: chmod +x scripts/verify_quickstart_budget.sh && ./scripts/verify_quickstart_budget.sh
 
   # -----------------------------------------------------------------------
-  # Job 4: Security — bandit + safety (runs in parallel with test)
+  # Job 4: Security — bandit + safety scan (runs in parallel with test)
   # -----------------------------------------------------------------------
   security:
     name: Security Scan
@@ -197,8 +197,8 @@ jobs:
       - name: Run bandit (security linter)
         run: bandit -r proxy/ -ll -ii --exclude proxy/tests
 
-      - name: Run safety (dependency vulnerability check)
-        run: safety check --output text
+      - name: Run safety (dependency vulnerability scan)
+        run: safety --disable-optional-telemetry scan --output json
         continue-on-error: true  # Don't block on advisory-only vulns
 
   # -----------------------------------------------------------------------

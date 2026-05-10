@@ -115,7 +115,7 @@ coverage: ## Run tests with HTML coverage report
 
 security: ## Run security scans (bandit + safety)
 	bandit -r $(SRC) -ll -ii --exclude $(TESTS)
-	safety check --output text || true
+	perl -e 'alarm 120; exec @ARGV' safety --disable-optional-telemetry scan --output screen || true
 
 # ---------------------------------------------------------------------------
 # Running
