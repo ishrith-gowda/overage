@@ -97,7 +97,7 @@ class OverageClient:
 
         resp = self._http.get("/v1/summary", params=params)
         resp.raise_for_status()
-        return cast(dict[str, Any], resp.json())
+        return cast("dict[str, Any]", resp.json())
 
     def get_calls(self, limit: int = 50, offset: int = 0) -> dict[str, Any]:
         """Fetch recorded LLM call logs.
@@ -114,7 +114,7 @@ class OverageClient:
             params={"limit": limit, "offset": offset},
         )
         resp.raise_for_status()
-        return cast(dict[str, Any], resp.json())
+        return cast("dict[str, Any]", resp.json())
 
     def get_call(self, call_id: int) -> dict[str, Any]:
         """Fetch a single call with full PRD §5 payload including ``estimation``.
@@ -127,7 +127,7 @@ class OverageClient:
         """
         resp = self._http.get(f"/v1/calls/{call_id}")
         resp.raise_for_status()
-        return cast(dict[str, Any], resp.json())
+        return cast("dict[str, Any]", resp.json())
 
     def get_alerts(self, status: str = "active") -> dict[str, Any]:
         """List discrepancy alerts for the authenticated user.
@@ -140,7 +140,7 @@ class OverageClient:
         """
         resp = self._http.get("/v1/alerts", params={"status": status})
         resp.raise_for_status()
-        return cast(dict[str, Any], resp.json())
+        return cast("dict[str, Any]", resp.json())
 
     def acknowledge_alert(self, alert_id: int) -> dict[str, Any]:
         """Acknowledge a discrepancy alert (idempotent).
@@ -153,7 +153,7 @@ class OverageClient:
         """
         resp = self._http.post(f"/v1/alerts/{alert_id}/acknowledge")
         resp.raise_for_status()
-        return cast(dict[str, Any], resp.json())
+        return cast("dict[str, Any]", resp.json())
 
     def download_audit_report(self, start_date: str, end_date: str) -> bytes:
         """Download the PDF audit report for a billing period (PRD Story 6).
