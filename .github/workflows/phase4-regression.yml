@@ -1,0 +1,62 @@
+# Phase 4 — scheduled + path-filtered regression for alerts, summary contracts,
+# and the full `_record_and_estimate` pipeline (see docs/ROADMAP.md Phase 4).
+# Complements the main CI test job; does not replace lint/typecheck/security.
+
+name: Phase 4 regression
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 7 * * 3"
+  pull_request:
+    branches: [main]
+    paths:
+      - "proxy/api/routes.py"
+      - "proxy/estimation/aggregator.py"
+      - "proxy/estimation/alert_persistence.py"
+      - "proxy/estimation/palace.py"
+      - "proxy/estimation/timing.py"
+      - "proxy/tests/test_phase4_alert_persistence.py"
+      - "proxy/tests/test_phase4_dashboard_api_contract.py"
+      - "proxy/tests/test_api.py"
+      - "proxy/tests/conftest.py"
+      - ".github/workflows/phase4-regression.yml"
+      - "pyproject.toml"
+      - "Makefile"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase4-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase4-regression:
+    name: Pytest (phase4_regression marker)
+    runs-on: ubuntu-latest
+    env:
+      DD_TRACE_ENABLED: "false"
+      DD_INSTRUMENTATION_TELEMETRY_ENABLED: "false"
+      ESTIMATION_ENABLED: "false"
+      DATABASE_URL: "sqlite+aiosqlite://"
+      OVERAGE_SKIP_APP_DB_SCHEMA: "1"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: pip-phase4-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-phase4-${{ runner.os }}-
+
+      - name: Install dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run Phase 4 regression tests
+        run: python -m pytest proxy/tests -m phase4_regression -v --timeout=120 --no-cov

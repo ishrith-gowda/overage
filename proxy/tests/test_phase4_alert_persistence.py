@@ -1,7 +1,8 @@
 """Phase 4.5 — sustained discrepancy alerts persisted to the database.
 
 Covers ``maybe_persist_sustained_discrepancy_alert`` and the background
-``_record_and_estimate`` path (with isolated aggregator + patched aggregate).
+``_record_and_estimate`` path (isolated aggregator tests, patched aggregate
+integration, and an optional full PALACE+timing+aggregator pipeline test).
 """
 
 from __future__ import annotations
@@ -10,14 +11,18 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from asgi_lifespan import LifespanManager
 from sqlalchemy import func, select
 
 from proxy.api import routes as routes_module
 from proxy.api.routes import _record_and_estimate
+from proxy.config import get_settings
 from proxy.estimation.aggregator import AggregatedEstimate, DiscrepancyAggregator
 from proxy.estimation.alert_persistence import maybe_persist_sustained_discrepancy_alert
+from proxy.estimation.timing import TimingEstimator
+from proxy.main import create_app
 from proxy.storage.models import APICallLog, DiscrepancyAlert, EstimationResult, User
-from proxy.tests.conftest import async_sqlite_session_factory
+from proxy.tests.conftest import async_sqlite_session_factory, install_test_database_override
 
 if TYPE_CHECKING:
     import httpx
@@ -176,3 +181,78 @@ async def test_record_and_estimate_persists_alert_when_window_sustained(
 
         est = await session.execute(select(func.count(EstimationResult.id)))
         assert est.scalar_one() == 50
+
+
+@pytest.mark.phase4_regression
+@pytest.mark.asyncio
+async def test_record_and_estimate_full_estimation_pipeline_inserts_alert(
+    monkeypatch: pytest.MonkeyPatch,
+    test_user: User,
+    test_api_key: str,
+) -> None:
+    """Background path uses real ``aggregate_single_call`` (no aggregate mock).
+
+    Exercises placeholder PALACE, :class:`~proxy.estimation.timing.TimingEstimator`
+    regression, ``DiscrepancyAggregator`` sliding window, and
+    ``maybe_persist_sustained_discrepancy_alert`` end-to-end against the pytest
+    SQLite database. Provider HTTP remains out of scope; token fields are
+    synthetic but consistent so production-shaped code paths run.
+    """
+    _ = test_api_key
+    try:
+        monkeypatch.setenv("ESTIMATION_ENABLED", "true")
+        monkeypatch.setenv("DISCREPANCY_ALERT_THRESHOLD_PCT", "15")
+        get_settings.cache_clear()
+
+        app = create_app()
+        install_test_database_override(app)
+
+        session_factory = async_sqlite_session_factory()
+        body = {"model": "o3", "messages": [{"role": "user", "content": "y" * 500}]}
+
+        fresh_agg = DiscrepancyAggregator()
+        fresh_timing = TimingEstimator()
+
+        async with LifespanManager(app):
+            with (
+                patch.object(routes_module, "aggregator", fresh_agg),
+                patch.object(routes_module, "timing_estimator", fresh_timing),
+                patch("proxy.api.routes.get_session_factory", return_value=session_factory),
+            ):
+                for i in range(50):
+                    latency = 40000.0 + float(i) * 1200.0
+                    await _record_and_estimate(
+                        user_id=test_user.id,
+                        provider_name="openai",
+                        model="o3",
+                        prov_response_dict={
+                            "input_tokens": 10,
+                            "output_tokens": 9100,
+                            "reasoning_tokens": 9000,
+                            "total_latency_ms": latency,
+                            "ttft_ms": None,
+                            "is_streaming": False,
+                            "raw_usage": {},
+                        },
+                        body=body,
+                        request_id=f"req_phase4_full_{i}",
+                    )
+
+        async with session_factory() as session:
+            cnt = await session.execute(
+                select(func.count(DiscrepancyAlert.id)).where(
+                    DiscrepancyAlert.user_id == test_user.id,
+                    DiscrepancyAlert.alert_status == "active",
+                )
+            )
+            assert cnt.scalar_one() == 1
+
+            calls = await session.execute(
+                select(func.count(APICallLog.id)).where(APICallLog.user_id == test_user.id)
+            )
+            assert calls.scalar_one() == 50
+
+            est = await session.execute(select(func.count(EstimationResult.id)))
+            assert est.scalar_one() == 50
+    finally:
+        get_settings.cache_clear()

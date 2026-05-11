@@ -373,6 +373,59 @@ class TestSummaryEndpoint:
         assert data["groups"][0]["low_confidence"] is True
 
     @pytest.mark.asyncio
+    async def test_summary_group_by_model_returns_group_key_model_id(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        sample_call_log: APICallLog,
+        sample_estimation: EstimationResult,
+        db_session: Any,
+    ) -> None:
+        """group_by=model uses ``APICallLog.model`` as ``group_key`` (Story 8)."""
+        await db_session.commit()
+
+        response = await client.get(
+            "/v1/summary",
+            headers={"X-API-Key": test_api_key},
+            params={"group_by": "model"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "overall" in data
+        assert "groups" in data
+        keys = {g["group_key"] for g in data["groups"]}
+        assert sample_call_log.model in keys
+
+    @pytest.mark.asyncio
+    async def test_summary_group_by_provider_model_returns_composite_key(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        sample_call_log: APICallLog,
+        sample_estimation: EstimationResult,
+        db_session: Any,
+    ) -> None:
+        """group_by=provider_model uses ``provider::model`` composite keys."""
+        await db_session.commit()
+
+        response = await client.get(
+            "/v1/summary",
+            headers={"X-API-Key": test_api_key},
+            params={"group_by": "provider_model"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "groups" in data
+        expected = f"{sample_call_log.provider}::{sample_call_log.model}"
+        keys = {g["group_key"] for g in data["groups"]}
+        assert expected in keys
+        row = next(g for g in data["groups"] if g["group_key"] == expected)
+        assert row["provider"] == sample_call_log.provider
+        assert row["model"] == sample_call_log.model
+
+    @pytest.mark.asyncio
     async def test_summary_invalid_group_by_returns_422(
         self,
         client: httpx.AsyncClient,

@@ -16,6 +16,7 @@ import httpx
 import pytest
 import pytest_asyncio
 from asgi_lifespan import LifespanManager
+from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from proxy.storage.models import (
@@ -29,8 +30,6 @@ from proxy.storage.models import (
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
-
-    from fastapi import FastAPI
 
 # ---------------------------------------------------------------------------
 # Environment overrides — set BEFORE importing app modules
@@ -110,6 +109,21 @@ async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
+def install_test_database_override(app: FastAPI) -> None:
+    """Wire ``get_db`` on *app* to the shared pytest in-memory engine.
+
+    Use when calling :func:`proxy.main.create_app` outside the default
+    ``app`` fixture (for example Phase 4 tests that must set env vars before
+    lifespan so :func:`proxy.config.get_settings` sees ``ESTIMATION_ENABLED``).
+
+    Args:
+        app: Application returned by :func:`proxy.main.create_app`.
+    """
+    from proxy.storage.database import get_db
+
+    app.dependency_overrides[get_db] = _override_get_db
+
+
 @pytest.fixture
 def app() -> FastAPI:
     """Create a test FastAPI app with overridden dependencies."""
@@ -119,10 +133,9 @@ def app() -> FastAPI:
     get_settings.cache_clear()
 
     from proxy.main import create_app
-    from proxy.storage.database import get_db
 
     test_app = create_app()
-    test_app.dependency_overrides[get_db] = _override_get_db
+    install_test_database_override(test_app)
     return test_app
 
 
