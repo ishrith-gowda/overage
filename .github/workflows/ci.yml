@@ -96,7 +96,7 @@ jobs:
         run: mypy proxy/ --strict
 
   # -----------------------------------------------------------------------
-  # Job 3: Test — pytest with coverage
+  # Job 3: Test — pytest with coverage (includes Phase 4.5 alert persistence + SDK client smoke)
   # -----------------------------------------------------------------------
   test:
     name: Test

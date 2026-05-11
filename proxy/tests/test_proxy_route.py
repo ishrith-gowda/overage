@@ -339,7 +339,7 @@ class TestProxyBackgroundPersistence:
         """Background task writes ``APICallLog`` rows visible to the same test database."""
         import asyncio
 
-        from proxy.tests.conftest import test_async_session_factory
+        from proxy.tests.conftest import async_sqlite_session_factory
 
         raw = mock_openai_response(model="o3", reasoning_tokens=42)
         prov_response = ProviderResponse(
@@ -358,7 +358,7 @@ class TestProxyBackgroundPersistence:
         mock_provider = AsyncMock()
         mock_provider.forward_request = AsyncMock(return_value=prov_response)
 
-        session_factory = test_async_session_factory()
+        session_factory = async_sqlite_session_factory()
         with (
             patch("proxy.api.routes.provider_registry.get", return_value=mock_provider),
             patch("proxy.api.routes.get_session_factory", return_value=session_factory),

@@ -120,6 +120,9 @@ make run
 # In a separate terminal, start the dashboard (port 8501)
 make run-dashboard
 
+# Optional: headless PNG of the Phase 3.7 call-detail panel (see docs/ROADMAP.md)
+# pip install -e ".[screenshot]" && playwright install chromium && make dashboard-screenshot
+
 # Open the dashboard and paste your Overage API key (from `make demo` output or
 # POST /v1/auth/register then POST /v1/auth/apikey).
 open http://localhost:8501

@@ -289,6 +289,7 @@ async def main() -> int:
     if args.db_url:
         os.environ["DATABASE_URL"] = args.db_url
 
+    from proxy.demo_constants import DEMO_PLAINTEXT_API_KEY
     from proxy.storage.database import get_session_factory, init_db, init_engine
     from proxy.storage.models import APICallLog, APIKey, EstimationResult, User
 
@@ -307,7 +308,7 @@ async def main() -> int:
         await session.flush()
 
         # Create demo API key
-        raw_key = "ovg_live_demo_key_1234567890abcdef1234567890abcdef1234567890abcdef"
+        raw_key = DEMO_PLAINTEXT_API_KEY
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         api_key = APIKey(user_id=demo_user.id, key_hash=key_hash, name="Demo Key")
         session.add(api_key)

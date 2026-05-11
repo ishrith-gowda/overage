@@ -1779,6 +1779,7 @@ OPENAI_KEY = "sk-abc123realkey"  # NEVER hardcode secrets
 | `SENTRY_DSN` | Sentry error tracking DSN | No | `""` | `https://...@sentry.io/...` |
 | `PALACE_MODEL_PATH` | Path to PALACE LoRA weights | No | `./models/palace-v0.1` | `/opt/models/palace-v0.1` |
 | `ESTIMATION_ENABLED` | Enable async estimation pipeline | No | `true` | `false` |
+| `DISCREPANCY_ALERT_THRESHOLD_PCT` | Min. sustained \|avg discrepancy %\| before inserting `DiscrepancyAlert` rows; **≥999** disables automatic inserts | No | `15` | `999` |
 | `CORS_ORIGINS` | Allowed CORS origins (comma-separated) | No | `http://localhost:8501` | `https://app.overage.dev` |
 | `POSTHOG_API_KEY` | PostHog analytics key | No | `""` | `phc_...` |
 | `DATADOG_API_KEY` | Datadog APM key | No | `""` | `dd-...` |
@@ -1794,6 +1795,7 @@ All commands are available via `make`. Run `make help` for descriptions.
 | `make install` | Install all dependencies (prod + dev) | Packages installed |
 | `make run` | Start the proxy server (uvicorn, port 8000) | `Uvicorn running on http://0.0.0.0:8000` |
 | `make run-dashboard` | Start the Streamlit dashboard (port 8501) | `You can now view your Streamlit app` |
+| `make dashboard-screenshot` | Headless PNG of call-detail + estimation (Playwright; needs `pip install -e ".[screenshot]"` + `playwright install chromium`) | `Wrote dashboard evidence PNG to artifacts/...` |
 | `make lint` | Run ruff linter + formatter check | `All checks passed!` or error list |
 | `make format` | Auto-format with ruff | Files reformatted |
 | `make typecheck` | Run mypy in strict mode | `Success: no issues found` or error list |

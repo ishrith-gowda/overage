@@ -21,6 +21,7 @@ from sqlalchemy.orm import selectinload
 from proxy.api.auth import validate_api_key
 from proxy.config import get_settings
 from proxy.estimation.aggregator import DiscrepancyAggregator
+from proxy.estimation.alert_persistence import maybe_persist_sustained_discrepancy_alert
 from proxy.estimation.palace import PALACEEstimator
 from proxy.estimation.timing import TimingEstimator
 from proxy.providers.base import ProviderRequest, provider_registry
@@ -776,6 +777,12 @@ async def _record_and_estimate(
                 session.add(estimation)
 
                 await aggregator.record_discrepancy(user_id, agg.discrepancy_pct, agg.dollar_impact)
+                await maybe_persist_sustained_discrepancy_alert(
+                    session,
+                    user_id,
+                    aggregator,
+                    threshold_pct=settings.discrepancy_alert_threshold_pct,
+                )
 
             await session.commit()
             log.info("call_recorded", call_id=call_log.id)

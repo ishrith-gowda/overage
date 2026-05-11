@@ -92,6 +92,16 @@ class Settings(BaseSettings):
         default="v0.1.0",
         description="Model version tag recorded with every estimation",
     )
+    discrepancy_alert_threshold_pct: float = Field(
+        default=15.0,
+        ge=0.0,
+        le=1_000_000.0,
+        description=(
+            "Minimum sustained absolute average discrepancy percentage across the "
+            "sliding window before persisting a DiscrepancyAlert. Values >= 999 disable "
+            "automatic alert inserts (operations rollback)."
+        ),
+    )
 
     # --- Monitoring ---
     sentry_dsn: str = Field(default="", description="Sentry DSN for error tracking")

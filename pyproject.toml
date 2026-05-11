@@ -55,6 +55,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Headless dashboard evidence PNG (Playwright); not required for CI or proxy runtime.
+screenshot = [
+    "playwright>=1.50.0,<2.0",
+]
 # PDF audit reports (PRD Story 6) — also listed under dev for local tests; optional for slim CI images.
 reporting = [
     "fpdf2>=2.8,<3.0",
@@ -204,6 +208,8 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 show_error_codes = true
+# SDK lives under ``sdk/`` (``pip install -e ./sdk`` in prod); include for tests that import it.
+mypy_path = ["sdk"]
 # Pydantic integration for proper BaseModel type checking
 plugins = ["pydantic.mypy"]
 # Exclude directories that don't need strict typing
@@ -245,7 +251,7 @@ warn_required_dynamic_aliases = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["proxy/tests"]
-pythonpath = ["."]
+pythonpath = [".", "sdk"]
 addopts = [
     "--tb=short",
     "--strict-markers",

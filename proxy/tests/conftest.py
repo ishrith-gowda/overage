@@ -67,7 +67,7 @@ _test_session_factory = async_sessionmaker(
 )
 
 
-def test_async_session_factory() -> async_sessionmaker[AsyncSession]:
+def async_sqlite_session_factory() -> async_sessionmaker[AsyncSession]:
     """Return the pytest async session factory (same DB as ``get_db`` override).
 
     Patch ``proxy.api.routes.get_session_factory`` with this in tests so
