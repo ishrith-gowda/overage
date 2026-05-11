@@ -11,10 +11,12 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from proxy.storage.models import APICallLog, EstimationResult, User
+
 if TYPE_CHECKING:
     import httpx
 
-    from proxy.storage.models import APICallLog, DiscrepancyAlert, EstimationResult
+    from proxy.storage.models import DiscrepancyAlert
 
 
 class TestHealthEndpoint:
@@ -422,6 +424,73 @@ class TestSummaryEndpoint:
         data = response.json()
         assert data["total_calls"] >= 1
         assert data["total_reported_reasoning_tokens"] > 0
+
+
+class TestSummaryHonoringRate:
+    """GET /v1/summary honoring_rate_pct matches PALACE interval logic (Phase 4.4)."""
+
+    @pytest.mark.asyncio
+    async def test_summary_honoring_rate_pct_from_known_seed_rows(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        test_user: User,
+        db_session: Any,
+    ) -> None:
+        """Two honoring + two non-honoring calls → 50%% honoring_rate_pct."""
+        uid = test_user.id
+        for idx, (reported, low, high) in enumerate(
+            [
+                (8000, 7000, 9000),  # honoring
+                (8500, 8000, 9000),  # honoring
+                (10000, 7000, 9000),  # above interval
+                (5000, 7000, 9000),  # below interval
+            ]
+        ):
+            call = APICallLog(
+                user_id=uid,
+                provider="openai",
+                model="o3",
+                prompt_hash=f"honor_{idx}",
+                prompt_length_chars=10,
+                answer_length_chars=10,
+                reported_input_tokens=1,
+                reported_output_tokens=reported + 100,
+                reported_reasoning_tokens=reported,
+                total_latency_ms=100.0,
+                ttft_ms=None,
+                is_streaming=False,
+                raw_usage_json="{}",
+                request_id=f"honor_req_{idx}",
+            )
+            db_session.add(call)
+            await db_session.flush()
+            est = EstimationResult(
+                call_id=call.id,
+                palace_estimated_tokens=(low + high) // 2,
+                palace_confidence_low=low,
+                palace_confidence_high=high,
+                palace_model_version="v0.1.0",
+                timing_estimated_tokens=0,
+                timing_tps_used=0.0,
+                timing_r_squared=None,
+                combined_estimated_tokens=(low + high) // 2,
+                discrepancy_pct=0.0,
+                dollar_impact=0.0,
+                signals_agree=True,
+                domain_classification="general_qa",
+            )
+            db_session.add(est)
+        await db_session.commit()
+
+        response = await client.get(
+            "/v1/summary",
+            headers={"X-API-Key": test_api_key},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_calls"] == 4
+        assert data["honoring_rate_pct"] == 50.0
 
 
 class TestAlertsEndpoint:

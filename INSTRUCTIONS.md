@@ -1779,6 +1779,7 @@ OPENAI_KEY = "sk-abc123realkey"  # NEVER hardcode secrets
 | `SENTRY_DSN` | Sentry error tracking DSN | No | `""` | `https://...@sentry.io/...` |
 | `PALACE_MODEL_PATH` | Path to PALACE LoRA weights | No | `./models/palace-v0.1` | `/opt/models/palace-v0.1` |
 | `ESTIMATION_ENABLED` | Enable async estimation pipeline | No | `true` | `false` |
+| `DISCREPANCY_ALERT_THRESHOLD_PCT` | Min. sustained \|avg discrepancy %\| before inserting `DiscrepancyAlert` rows; **≥999** disables automatic inserts | No | `15` | `999` |
 | `CORS_ORIGINS` | Allowed CORS origins (comma-separated) | No | `http://localhost:8501` | `https://app.overage.dev` |
 | `POSTHOG_API_KEY` | PostHog analytics key | No | `""` | `phc_...` |
 | `DATADOG_API_KEY` | Datadog APM key | No | `""` | `dd-...` |

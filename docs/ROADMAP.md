@@ -88,7 +88,7 @@ A complete merged-PR list is one `gh pr list --state merged --limit 100` away; t
 
 ### 1.1 Vision (one paragraph)
 
-Overage is an independent audit layer for hidden LLM reasoning-token billing. It is a FastAPI reverse proxy that sits between an enterprise application and the LLM provider (OpenAI, Anthropic, Google Gemini), forwards requests with under 10ms of added latency, and asynchronously verifies the provider-reported reasoning-token counts using two independent signals: (1) PALACE — a LoRA-fine-tuned Qwen2.5-1.5B model that estimates reasoning tokens from prompt + answer text, and (2) timing analysis — a generation-time-vs-output-token correlation (Pearson ≥ 0.987 per arXiv:2412.15431) that cross-checks reported counts against expected tokens-per-second rates. The dashboard surfaces per-call discrepancies, aggregate honoring rates, and dollar impact. No provider cooperation required.
+Overage is an independent audit layer for hidden LLM reasoning-token billing. It is a FastAPI reverse proxy that sits between an enterprise application and the LLM provider (OpenAI, Anthropic, Google Gemini), forwards requests with under 10ms of added latency, and asynchronously verifies the provider-reported reasoning-token counts using two independent signals: (1) PALACE — a LoRA-fine-tuned Qwen2.5-1.5B model that estimates reasoning tokens from prompt + answer text, and (2) timing analysis — a generation-time-vs-output-token correlation (Pearson ≥ 0.987 per arXiv:2412.15431 — **research reference; not a product CI gate**) that cross-checks reported counts against expected tokens-per-second rates. The dashboard surfaces per-call discrepancies, aggregate honoring rates, and dollar impact. No provider cooperation required.
 
 The full product spec is in [`PRD.md`](../PRD.md). This document never restates product behaviour at the feature level — it links to PRD stories. What this document adds is the **schedule, dependency graph, acceptance criteria, and definition of done** for each delivery slice.
 
@@ -395,7 +395,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 | 1.8 | Background task `_record_and_estimate` writes `APICallLog` row | **`test_proxy_route.py::TestProxyBackgroundPersistence`** (no patch on `_record_and_estimate`; session factory aligned with test DB) then **`GET /v1/calls`** lists the new row | done |
 | 1.9 | `scripts/benchmark.py` measures HTTP round-trip (default **`GET /health`**) | `make benchmark` prints p50/p99; default measures local process + HTTP to `/health` per §1.3; optional **`POST`** to `/v1/proxy/...` measures proxy-route overhead without upstream | done |
 | 1.10 | Quickstart in `README.md` shows OpenAI Python SDK with `base_url` redirect | Timed reproduction by maintainer | done |
-| 1.11 | Unit tests `proxy/tests/test_openai_provider.py` | **15** collected tests (success, missing usage, missing reasoning_tokens, timeout, HTTP error, streaming/TTFT, etc.); run `pytest proxy/tests/test_openai_provider.py --collect-only` | done |
+| 1.11 | Unit tests `proxy/tests/test_openai_provider.py` | **16** collected tests (parametrized extract matrix, `forward_request`, errors, streaming/TTFT, etc.); run `pytest proxy/tests/test_openai_provider.py --collect-only` | done |
 | 1.12 | Integration tests `proxy/tests/test_proxy_route.py::test_proxy_openai_*` (+ streaming / persistence classes) | Mocked httpx; asserts response body, **`X-Overage-Request-Id`**, **`X-Overage-Latency-Added-Ms`**, and (where applicable) DB visibility | done |
 
 **Test plan.**
@@ -448,7 +448,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 | 2.5 | Add `make benchmark` target wrapping `scripts/benchmark.py --iterations 200` | `make benchmark` prints summary stats | done |
 | 2.6 | Document latency budget in `README.md` (link to `scripts/benchmark.py`) | README has "Latency benchmark (wire RTT)" section | done |
 | 2.7 | Anthropic SDK quickstart in `README.md` | Curl + Python SDK examples documented; **live** curl + SDK roundtrip is maintainer smoke (`make run` + keys), not CI — README states this explicitly | done |
-| 2.8 | Unit + integration tests for Anthropic provider | **`proxy/tests/test_anthropic_provider.py`** (14 tests: extraction matrix, `forward_request`, errors, streaming adapter) + **`test_proxy_route.py`** (`TestProxyAnthropicNonStreaming`, `TestProxyAnthropicStreaming`) | done |
+| 2.8 | Unit + integration tests for Anthropic provider | **`proxy/tests/test_anthropic_provider.py`** (13 collected tests: extraction matrix, `forward_request`, errors, streaming adapter) + **`test_proxy_route.py`** (`TestProxyAnthropicNonStreaming`, `TestProxyAnthropicStreaming`) | done |
 
 **Test plan.**
 
@@ -463,7 +463,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 - [x] All subtasks done.
 - [x] PR #16 merged with green CI.
 - [x] Anthropic SDK quickstart reproduces.
-- [x] Benchmark p50<5ms / p99<10ms confirmed.
+- [x] Benchmark **target** p50<5ms / p99<10ms documented and runnable via `make benchmark` (maintainer / local hardware; **not** a CI gate — see §2.5 closure table “Latency DoD”).
 
 **Rollback plan.** Same as Phase 1 — flag-flip + revert PR. No migration.
 
@@ -513,7 +513,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 - [x] All subtasks done.
 - [x] PR #17 merged with green CI.
-- [ ] PR #52 merged with green CI (Phase 3 PRD compliance: flat call detail, placeholder PALACE path, dashboard inspector, tests) — track until squash-merge to `main`.
+- [x] PR #52 merged with green CI (Phase 3 PRD compliance: flat call detail, placeholder PALACE path, dashboard inspector, tests) — landed on `main` as squash-merge **[#52](https://github.com/ishrith-gowda/overage/pull/52)** (`139375b` area).
 - [x] Dashboard renders estimation columns.
 
 **Rollback plan.** `ESTIMATION_ENABLED=false` skips PALACE/timing/aggregator persistence (call logs still record); list/detail return `null` estimation fields without breaking consumers (PRD §5). Revert PR for code-level rollback. No migration in this phase.
@@ -527,7 +527,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 #### Phase 0–3 — closure summary, mocks, and gaps (2026-05-11)
 
-**Are Phases 0–3 “all done”?** Yes, for **ledger / automated-test** completion: every Phase **0–3** row in §5 remains **`done`**, CI exercises the cited proxy and API paths, and **Phase 3 post-audit compliance** is implemented on branch **`feat/phase-3-prd-compliance`** in **[PR #52](https://github.com/ishrith-gowda/overage/pull/52)** (flat `GET /v1/calls/{id}`, deterministic PALACE placeholder when ML is absent, dashboard call-detail inspector, `test_palace.py`, SDK `get_call`, docs). **Treat compliance as fully landed only after PR #52 is merged to `main` with green CI** (then update this subsection and **Recent landings** “Commit” column from `TBD` to the squash-merge SHA).
+**Are Phases 0–3 “all done”?** Yes, for **ledger / automated-test** completion: every Phase **0–3** row in §5 remains **`done`**, CI exercises the cited proxy and API paths, and **Phase 3 PRD compliance** from **[PR #52](https://github.com/ishrith-gowda/overage/pull/52)** is **on `main`** (flat `GET /v1/calls/{id}`, deterministic PALACE placeholder when ML is absent, dashboard call-detail inspector, `test_palace.py`, SDK `get_call`, docs). Update **Recent landings** if you need the exact squash-merge SHA for audit trail.
 
 **What is mocked or synthetic today (not a substitute for production traffic)**
 
@@ -606,17 +606,17 @@ These steps produce the same evidence without automation. Use a machine where **
 | 4.1 | Add `GET /v1/summary` returning `SummaryStats` (total_calls, total_reported, total_estimated, aggregate_discrepancy_pct, total_dollar_impact, avg_discrepancy_pct, honoring_rate_pct) | `_fetch_summary_stats` query in `proxy/api/routes.py` returns all fields | done |
 | 4.2 | Add `group_by ∈ {provider, model, provider_model}` query parameter | Response shape becomes `{overall, groups: [SummaryGroupRow]}` when set | done |
 | 4.3 | Add `GET /v1/summary/timeseries` returning `[{date, call_count, reported, estimated, discrepancy_pct, dollar_impact}]` | Daily aggregation by `date(timestamp)` over selected range | done |
-| 4.4 | Compute `honoring_rate_pct` as % of calls where `reported ∈ [palace_low, palace_high]` | Verified against synthetic data via `scripts/demo_data.py` | done |
-| 4.5 | Persist `DiscrepancyAlert` rows when sliding-window discrepancy exceeds threshold | After 50 calls with > 15% drift, `alert_status='active'` row exists | done |
+| 4.4 | Compute `honoring_rate_pct` as % of calls where `reported ∈ [palace_low, palace_high]` | `test_api.py::TestSummaryHonoringRate` (deterministic seed rows); optional cross-check with `scripts/demo_data.py` | done |
+| 4.5 | Persist `DiscrepancyAlert` rows when sliding-window discrepancy exceeds threshold | `proxy/estimation/alert_persistence.py` invoked from `_record_and_estimate` after `record_discrepancy`; **`test_phase4_alert_persistence.py`** (unit + background integration); threshold env **`DISCREPANCY_ALERT_THRESHOLD_PCT`** (default `15`; set **`>=999`** to disable inserts) | done |
 | 4.6 | `GET /v1/alerts?status={active,acknowledged,resolved,all}` lists rows | Default `status=active`; filter works | done |
 | 4.7 | Per-token pricing table in `proxy/constants.py` | Matches PRD Appendix A | done |
-| 4.8 | SDK fix: `default_headers={"X-API-Key": OVERAGE_KEY}` for OpenAI + Anthropic clients | `sdk/overage/client.py` documented; integration test uses both SDKs | done |
-| 4.9 | Tests for summary, group_by, alerts | `test_api.py::test_summary_*` + `test_aggregator.py::test_record_discrepancy_*` | done |
+| 4.8 | SDK fix: `default_headers={"X-API-Key": OVERAGE_KEY}` for OpenAI + Anthropic clients | `sdk/overage/client.py`; **`proxy/tests/test_sdk_client.py`** exercises `patch_openai` / `patch_anthropic` with fakes (vendor SDKs not required in CI) | done |
+| 4.9 | Tests for summary, group_by, alerts | `test_api.py::test_summary_*` + `test_aggregator.py::test_record_discrepancy_*` + **`test_phase4_alert_persistence.py`** | done |
 
 **Test plan.**
 
-- Unit: `test_aggregator.py` for sliding-window math; `test_api.py` for `group_by` enumeration validation.
-- Integration: full flow that creates 50 calls with synthetic discrepancies and verifies alert row appears.
+- Unit: `test_aggregator.py` for sliding-window math; `test_api.py` for `group_by` enumeration validation; **`test_phase4_alert_persistence.py::test_maybe_persist_*`** for alert dedupe and disable threshold.
+- Integration: **`test_phase4_alert_persistence.py::test_record_and_estimate_persists_alert_when_window_sustained`** (50 background writes + DB alert row); **`test_api.py::TestSummaryHonoringRate`** for honoring %.
 - Manual smoke: dashboard renders the summary and group breakdown.
 
 **Definition of done.**
@@ -625,9 +625,9 @@ These steps produce the same evidence without automation. Use a machine where **
 - [x] PR #18 merged with green CI.
 - [x] Demo data confirms honoring rate calculation matches expected %.
 
-**Rollback plan.** No migration; revert PR. If only the alert subsystem needs disabling, set `DISCREPANCY_ALERT_THRESHOLD=999.0` so no row ever persists; the rest of the summary keeps working.
+**Rollback plan.** No migration; revert PR. If only the alert subsystem needs disabling, set **`DISCREPANCY_ALERT_THRESHOLD_PCT=999`** (or any value **≥ 999**) so no automatic row is inserted; list/ack APIs and summaries keep working.
 
-**Related files.** `proxy/api/routes.py` (summary, timeseries, alerts), `proxy/estimation/aggregator.py` (sliding window), `proxy/storage/models.py` (`DiscrepancyAlert`, `SummaryStats`, `SummaryGroupRow`), `proxy/constants.py` (pricing), `sdk/overage/client.py`.
+**Related files.** `proxy/api/routes.py` (summary, timeseries, alerts), `proxy/estimation/aggregator.py` (sliding window), **`proxy/estimation/alert_persistence.py`**, `proxy/config.py` (`discrepancy_alert_threshold_pct`), `proxy/storage/models.py` (`DiscrepancyAlert`, `SummaryStats`, `SummaryGroupRow`), `proxy/constants.py` (pricing), `sdk/overage/client.py`, **`proxy/tests/test_phase4_alert_persistence.py`**, **`proxy/tests/test_sdk_client.py`**.
 
 **Risks (closed).**
 
@@ -1595,7 +1595,7 @@ This section records every material change to this document and the program. New
 
 | Date | Event | Detail |
 |------|-------|--------|
-| 2026-05-11 | Phase 3.7 — Playwright dashboard screenshot tooling | `make dashboard-screenshot`, `scripts/capture_dashboard_evidence.py`, `proxy/demo_constants.py`, optional `.[screenshot]` extra; ROADMAP scripted path + `INSTRUCTIONS.md` / `README.md` pointers. |
+| 2026-05-10 | Phase 4 — alert persistence + tests + ledger | `proxy/estimation/alert_persistence.py` + `_record_and_estimate` wiring; `Settings.discrepancy_alert_threshold_pct`; `test_phase4_alert_persistence.py`, `test_sdk_client.py`, `TestSummaryHonoringRate`; ROADMAP Phase 4 / Phase 3 DoD / rollback env; `async_sqlite_session_factory` rename in `conftest.py`; `mypy_path` + SDK `cast` for strict mypy. |
 | 2026-05-11 | Container scan — Trivy SARIF / GHAS `CodeQL` | Dockerfile drops `curl`, `apt-get upgrade`, Python `HEALTHCHECK`; `.trivyignore` + `ci.yml` `trivyignores`; `docs/DEPLOYMENT.md` + `CONTRIBUTING.md`. |
 | 2026-05-11 | CI — Codecov patch + duplicate CodeQL note | Root `codecov.yml` (patch informational); `CONTRIBUTING.md` + `docs/CODECOV.md` explain stray `CodeQL` (GHAS) vs `CodeQL Analysis` (Actions). |
 | 2026-05-11 | ROADMAP — Phase 0–3 closure notes + PR #52 screenshot runbook | Phase 3 § “closure summary, mocks, and gaps”; manual screenshot steps for dashboard call-detail panel. |
