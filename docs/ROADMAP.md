@@ -1574,6 +1574,7 @@ This section records every material change to this document and the program. New
 
 | Date | Event | Detail |
 |------|-------|--------|
+| 2026-05-11 | Container scan — Trivy SARIF / GHAS `CodeQL` | Dockerfile drops `curl`, `apt-get upgrade`, Python `HEALTHCHECK`; `.trivyignore` + `ci.yml` `trivyignores`; `docs/DEPLOYMENT.md` + `CONTRIBUTING.md`. |
 | 2026-05-11 | CI — Codecov patch + duplicate CodeQL note | Root `codecov.yml` (patch informational); `CONTRIBUTING.md` + `docs/CODECOV.md` explain stray `CodeQL` (GHAS) vs `CodeQL Analysis` (Actions). |
 | 2026-05-11 | ROADMAP — Phase 0–3 closure notes + PR #52 screenshot runbook | Phase 3 § “closure summary, mocks, and gaps”; manual screenshot steps for dashboard call-detail panel. |
 | 2026-05-11 | Phase 3 PRD compliance (post-audit) | PR [#52](https://github.com/ishrith-gowda/overage/pull/52): flat `GET /v1/calls/{id}`; deterministic PALACE placeholder when ML absent; `_record_and_estimate` gated on `ESTIMATION_ENABLED`; dashboard call-detail inspector; `test_palace.py` + expanded `test_api.py`; SDK `get_call`; `docs/API.md`; issue template `roadmap_phase_closure.md`. |
