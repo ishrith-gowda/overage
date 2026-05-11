@@ -13,8 +13,15 @@ Reference: PRD.md Section 3 (User Stories), ARCHITECTURE.md Section 2.
 
 from __future__ import annotations
 
+import sys
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
+
+# Streamlit sets sys.path[0] to this directory; package imports need the repo root.
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
 
 import httpx
 import numpy as np
@@ -22,6 +29,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+
+from dashboard.url_utils import normalized_proxy_base_url
 
 # ---------------------------------------------------------------------------
 # Page configuration and custom CSS
@@ -154,6 +163,21 @@ def _params() -> dict[str, str]:
     return p
 
 
+def _proxy_get(
+    url: str,
+    path: str,
+    *,
+    headers: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
+    timeout: float = 10.0,
+) -> httpx.Response:
+    """GET a fixed path under the validated proxy origin (mitigates partial SSRF)."""
+    base = normalized_proxy_base_url(url)
+    hdrs: dict[str, str] = headers if headers is not None else {}
+    with httpx.Client(base_url=base, timeout=timeout) as client:
+        return client.get(path, headers=hdrs, params=params)
+
+
 @st.cache_data(ttl=30 if auto_refresh else 300)
 def fetch_summary(
     url: str,
@@ -166,8 +190,9 @@ def fetch_summary(
         params = {**_params()}
         if group_by:
             params["group_by"] = group_by
-        resp = httpx.get(
-            f"{url}/v1/summary",
+        resp = _proxy_get(
+            url,
+            "/v1/summary",
             headers=_headers(),
             params=params,
             timeout=10.0,
@@ -182,8 +207,9 @@ def fetch_summary(
 def fetch_calls(url: str, key: str, params_key: str) -> list[dict[str, Any]]:
     """Fetch recent call logs from the API."""
     try:
-        resp = httpx.get(
-            f"{url}/v1/calls",
+        resp = _proxy_get(
+            url,
+            "/v1/calls",
             headers=_headers(),
             params={**_params(), "limit": "200"},
             timeout=10.0,
@@ -199,8 +225,9 @@ def fetch_calls(url: str, key: str, params_key: str) -> list[dict[str, Any]]:
 def fetch_timeseries(url: str, key: str, params_key: str) -> list[dict[str, Any]]:
     """Fetch time-series data from the API."""
     try:
-        resp = httpx.get(
-            f"{url}/v1/summary/timeseries",
+        resp = _proxy_get(
+            url,
+            "/v1/summary/timeseries",
             headers=_headers(),
             params=_params(),
             timeout=10.0,
@@ -216,8 +243,12 @@ def fetch_timeseries(url: str, key: str, params_key: str) -> list[dict[str, Any]
 def fetch_call_detail(url: str, key: str, call_id: int) -> dict[str, Any] | None:
     """Fetch a single call with full PRD §5 estimation payload (``GET /v1/calls/{id}``)."""
     try:
-        resp = httpx.get(
-            f"{url}/v1/calls/{call_id}",
+        cid = int(call_id)
+        if cid < 1:
+            return None
+        resp = _proxy_get(
+            url,
+            f"/v1/calls/{cid}",
             headers={"X-API-Key": key} if key else {},
             timeout=20.0,
         )
@@ -231,8 +262,9 @@ def fetch_call_detail(url: str, key: str, call_id: int) -> dict[str, Any] | None
 def fetch_active_alerts(url: str, key: str, params_key: str) -> dict[str, Any]:
     """Fetch active discrepancy alerts for a banner (PRD Story 9)."""
     try:
-        resp = httpx.get(
-            f"{url}/v1/alerts",
+        resp = _proxy_get(
+            url,
+            "/v1/alerts",
             headers=_headers(),
             params={"status": "active"},
             timeout=15.0,
@@ -247,8 +279,9 @@ def fetch_active_alerts(url: str, key: str, params_key: str) -> dict[str, Any]:
 def fetch_report_pdf(url: str, key: str, start_d: str, end_d: str) -> bytes | None:
     """Download PDF audit report for ``GET /v1/report`` (PRD Story 6)."""
     try:
-        resp = httpx.get(
-            f"{url}/v1/report",
+        resp = _proxy_get(
+            url,
+            "/v1/report",
             headers=_headers(),
             params={"start_date": start_d, "end_date": end_d},
             timeout=120.0,
