@@ -29,7 +29,7 @@ When a phase completes, the agent updates this table, the **Status** field of th
 
 | Date | Phase / Subtask | PR | Commit | Note |
 |------|-----------------|----|--------|------|
-| 2026-05-11 | Phase 3 — PRD §5 call detail + PALACE placeholder + dashboard inspector | TBD | TBD | Flat `GET /v1/calls/{id}`; `PalacePrediction.deterministic_from_prompt_answer` when ML not loaded and `ESTIMATION_ENABLED=true`; background estimation skipped when `ESTIMATION_ENABLED=false`; integration tests + Streamlit detail panel |
+| 2026-05-11 | Phase 3 — PRD §5 call detail + PALACE placeholder + dashboard inspector | [#52](https://github.com/ishrith-gowda/overage/pull/52) | TBD | Flat `GET /v1/calls/{id}`; `PalacePrediction.deterministic_from_prompt_answer` when ML not loaded and `ESTIMATION_ENABLED=true`; background estimation skipped when `ESTIMATION_ENABLED=false`; integration tests + Streamlit detail panel |
 | 2026-05-10 | Phase 0.5 / 0.10 + Phase 1 ledger accuracy | — | — | Alembic smoke in `foundation-quickstart` + `test_migrations_smoke.py`; dev startup runs `alembic upgrade head` for file-backed DBs; ROADMAP §1.3 / Phase 1 / §3 aligned with tests and `benchmark.py` semantics |
 | 2026-05-10 | Phase 0 verification (ledger refresh) | #47 | merged | `verify-python`, auth/request-id tests, CI `foundation-quickstart`, ddtrace-safe pytest |
 | 2026-05-10 | 7.6 / 7.7 | #45 | tip of `docs/cursor-rule-contributing-workflow` | trailer-cleanup tooling, manual-merge doc |
@@ -483,7 +483,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 **Status.** `done` (closed 2026-04-07).
 
-**PR refs.** [#17](https://github.com/ishrith-gowda/overage/pull/17) (merged 2026-04-07); **Phase 3 PRD compliance** (flat call detail, deterministic PALACE placeholder, dashboard inspector, tests) — PR **TBD** (2026-05-11).
+**PR refs.** [#17](https://github.com/ishrith-gowda/overage/pull/17) (merged 2026-04-07); **Phase 3 PRD compliance** — [#52](https://github.com/ishrith-gowda/overage/pull/52) (opened 2026-05-11).
 
 **PRD coverage.** Story 3 (full); Story 5 (data layer — dashboard column added in Phase 5).
 
@@ -1535,7 +1535,7 @@ This section records every material change to this document and the program. New
 
 | Date | Event | Detail |
 |------|-------|--------|
-| 2026-05-11 | Phase 3 PRD compliance (post-audit) | Flat `GET /v1/calls/{id}`; deterministic PALACE placeholder when ML absent; `_record_and_estimate` gated on `ESTIMATION_ENABLED`; dashboard call-detail inspector; `test_palace.py` + expanded `test_api.py`; SDK `get_call`; `docs/API.md`; issue template `roadmap_phase_closure.md`. PR **TBD**. |
+| 2026-05-11 | Phase 3 PRD compliance (post-audit) | PR [#52](https://github.com/ishrith-gowda/overage/pull/52): flat `GET /v1/calls/{id}`; deterministic PALACE placeholder when ML absent; `_record_and_estimate` gated on `ESTIMATION_ENABLED`; dashboard call-detail inspector; `test_palace.py` + expanded `test_api.py`; SDK `get_call`; `docs/API.md`; issue template `roadmap_phase_closure.md`. |
 | 2026-05-10 | Phase 0.5 / 0.10 / Phase 1 ledger + dev schema | Alembic smoke in CI quickstart + `pytest proxy/tests/test_migrations_smoke.py`; development uses `alembic upgrade head` for file-backed SQLite/Postgres; ROADMAP §1.3 / Phase 1 / §3 matrix aligned with code (`LLMProvider`, `ProviderError`, headers, streaming, benchmark semantics). |
 | 2026-05-10 | Phase 0 ledger aligned with PR #47 | Merged `origin/main` into this branch; Phase 0 PR refs, subtasks 0.3–0.10, test plan, and **Recent landings** updated for `verify-python`, `foundation-quickstart` CI, request-id + invalid-key tests. |
 | 2026-05-10 | **`docs/ROADMAP.md` consolidated to single source of truth** | Replaced the prior 108-line product-only roadmap with this 1500+ line ledger. Stripped the phase tables from `docs/DEV_INFRASTRUCTURE.md` so it remains the canonical *account/platform inventory* but no longer competes with this doc on phase numbering. Updated `CONTRIBUTING.md` reference to point at this section. PR ref: this PR. |
