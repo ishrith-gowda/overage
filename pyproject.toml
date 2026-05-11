@@ -68,7 +68,7 @@ reporting = [
 ml = [
     "torch>=2.5,<3.0",
     "transformers>=4.47,<5.0",
-    "peft>=0.14,<1.0",
+    "peft>=0.19.1,<1.0",
 ]
 dev = [
     # --- Linting & formatting (single tool replaces flake8+black+isort) ---
