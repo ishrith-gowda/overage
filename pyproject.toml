@@ -37,7 +37,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0,<3.0",
     "alembic>=1.14,<2.0",
     "aiosqlite>=0.20,<1.0",       # SQLite async driver (local dev)
-    "asyncpg>=0.30,<1.0",         # PostgreSQL async driver (production)
+    "asyncpg>=0.31.0,<1.0",         # PostgreSQL async driver (production)
     # --- Data validation & settings ---
     "pydantic>=2.13.4,<3.0",
     "pydantic-settings>=2.7,<3.0",
