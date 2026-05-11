@@ -151,6 +151,8 @@ If you need to clean up multi-line dev commits before opening a PR, squash them 
 
 5. **Wait for CI** to pass — all required checks (`Lint`, `Type Check`, `Test`, `Security Scan`, `Docker Build`, `CodeQL Analysis`, `Dependency Review`, `Commit Lint`) must be green; `main` is branch-protected and rejects merges otherwise.
 
+   **Duplicate `CodeQL` check (GitHub Advanced Security):** If the PR shows a second check named **`CodeQL`** (from app **`github-advanced-security`**) failing in a few seconds while **`CodeQL Analysis`** (Actions workflow `security.yml`) is green, branch protection or **Default code scanning setup** is out of sync with the custom workflow. Fix in **GitHub → Repository → Settings → Code security and analysis → Code scanning**: disable **Default setup** if you use the `security.yml` workflow, **or** remove the stray **`CodeQL`** required status from **Rules / Branch protection** so only **`CodeQL Analysis`** is required (see `docs/CODECOV.md` / this file for CI job names).
+
 6. **Request review** (or self-merge if solo development with CI green).
 
 7. **Squash merge** into `main`:

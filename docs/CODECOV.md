@@ -62,7 +62,9 @@ Until then, **Commits** / **Pulls** may show **patch coverage: —** for PRs. Af
 
 ## Optional: `codecov.yml` in the repo
 
-You can add a root **`codecov.yml`** in git for coverage thresholds, PR comments, and flags. The UI **Repository YAML** editor on Codecov is optional if you prefer version-controlled config.
+The repo root **`codecov.yml`** sets **patch coverage** to **informational** so **`codecov/patch`** does not block merges on small diffs (project coverage is still enforced in CI via pytest `--cov-fail-under`). Adjust thresholds there if you want stricter patch gates later.
+
+You can extend the same file for flags, component paths, or PR comment layout. The Codecov UI **Repository YAML** editor remains optional if you prefer version-controlled config only.
 
 ## Codecov CLI (local uploads)
 
