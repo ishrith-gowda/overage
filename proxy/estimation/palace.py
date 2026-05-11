@@ -8,6 +8,7 @@ Reference: ARCHITECTURE.md Section 7.1 (PALACE Inference).
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,54 @@ import structlog
 from proxy.config import get_settings
 
 logger = structlog.get_logger(__name__)
+
+# Returned when the LoRA stack is not loaded but estimation is enabled (no torch/[ml] required).
+_PLACEHOLDER_MODEL_VERSION = "placeholder-deterministic-v1"
+_MAX_PLACEHOLDER_TOKENS = 500_000
+
+
+def classify_prompt_domain(prompt: str) -> str:
+    """Keyword-based domain label shared by PALACE and deterministic fallback.
+
+    Args:
+        prompt: The user's input prompt (may be truncated JSON for proxy logs).
+
+    Returns:
+        Domain string: math_reasoning, code_generation, logical_reasoning,
+        creative_writing, or general_qa.
+    """
+    lower = prompt.lower()
+
+    math_keywords = {
+        "solve",
+        "calculate",
+        "equation",
+        "integral",
+        "derivative",
+        "proof",
+        "theorem",
+    }
+    code_keywords = {
+        "code",
+        "function",
+        "program",
+        "debug",
+        "implement",
+        "class",
+        "def ",
+        "import ",
+    }
+    logic_keywords = {"logic", "reasoning", "deduce", "infer", "puzzle", "if and only if"}
+
+    if any(kw in lower for kw in math_keywords):
+        return "math_reasoning"
+    if any(kw in lower for kw in code_keywords):
+        return "code_generation"
+    if any(kw in lower for kw in logic_keywords):
+        return "logical_reasoning"
+    if any(kw in lower for kw in ("story", "write", "creative", "poem", "essay")):
+        return "creative_writing"
+    return "general_qa"
 
 
 @dataclass(frozen=True)
@@ -39,6 +88,38 @@ class PalacePrediction:
     domain: str
     inference_time_ms: float
     model_version: str
+
+    @staticmethod
+    def deterministic_from_prompt_answer(prompt: str, answer: str) -> PalacePrediction:
+        """Deterministic PALACE-shaped estimate when the ML stack is unavailable.
+
+        Same ``(prompt, answer)`` always yields the same numbers so tests and
+        dashboards are stable without ``[ml]`` installed or weights on disk.
+
+        Args:
+            prompt: Prompt text (or truncated JSON for logged requests).
+            answer: Assistant output text (often empty in the background path).
+
+        Returns:
+            A ``PalacePrediction`` tagged with ``placeholder-deterministic-v1``.
+        """
+        p_len = len(prompt)
+        a_len = len(answer)
+        h1 = int.from_bytes(hashlib.sha256(prompt.encode()).digest()[:4], "big")
+        h2 = int.from_bytes(hashlib.sha256(answer.encode()).digest()[:4], "big")
+        base = max(1, p_len // 40 + a_len // 20)
+        jitter = (h1 ^ h2) % 500
+        estimated = min(_MAX_PLACEHOLDER_TOKENS, max(1, base + jitter))
+        confidence_low = max(0, int(estimated * 0.85))
+        confidence_high = int(estimated * 1.15)
+        return PalacePrediction(
+            estimated_tokens=estimated,
+            confidence_low=confidence_low,
+            confidence_high=confidence_high,
+            domain=classify_prompt_domain(prompt),
+            inference_time_ms=0.0,
+            model_version=_PLACEHOLDER_MODEL_VERSION,
+        )
 
 
 class PALACEEstimator:
@@ -135,10 +216,16 @@ class PALACEEstimator:
             answer: The response text from the LLM.
 
         Returns:
-            PalacePrediction with estimates, or None if the model is not loaded.
+            ``PalacePrediction`` from the loaded model, a **deterministic placeholder**
+            when estimation is enabled but weights are not loaded, or ``None`` when
+            estimation is disabled (callers should skip the PALACE signal).
         """
         if not self._loaded:
-            logger.debug("palace_predict_skipped", reason="model_not_loaded")
+            settings = get_settings()
+            if settings.estimation_enabled:
+                logger.debug("palace_placeholder_used", reason="model_not_loaded")
+                return PalacePrediction.deterministic_from_prompt_answer(prompt, answer)
+            logger.debug("palace_predict_skipped", reason="model_not_loaded_estimation_disabled")
             return None
 
         try:
@@ -195,8 +282,7 @@ class PALACEEstimator:
         estimated = self._parse_token_count(output_text)
         inference_ms = (time.perf_counter() - t0) * 1000.0
 
-        # Domain classification (simple heuristic for MVP)
-        domain = self._classify_domain(prompt)
+        domain = classify_prompt_domain(prompt)
 
         # Confidence interval: ±15% for initial model version
         confidence_low = max(0, int(estimated * 0.85))
@@ -228,47 +314,3 @@ class PALACEEstimator:
         if numbers:
             return int(numbers[0])
         return 0
-
-    @staticmethod
-    def _classify_domain(prompt: str) -> str:
-        """Simple keyword-based domain classification for MVP.
-
-        Args:
-            prompt: The user's input prompt.
-
-        Returns:
-            Domain string: math_reasoning, code_generation, logical_reasoning,
-            creative_writing, or general_qa.
-        """
-        lower = prompt.lower()
-
-        math_keywords = {
-            "solve",
-            "calculate",
-            "equation",
-            "integral",
-            "derivative",
-            "proof",
-            "theorem",
-        }
-        code_keywords = {
-            "code",
-            "function",
-            "program",
-            "debug",
-            "implement",
-            "class",
-            "def ",
-            "import ",
-        }
-        logic_keywords = {"logic", "reasoning", "deduce", "infer", "puzzle", "if and only if"}
-
-        if any(kw in lower for kw in math_keywords):
-            return "math_reasoning"
-        if any(kw in lower for kw in code_keywords):
-            return "code_generation"
-        if any(kw in lower for kw in logic_keywords):
-            return "logical_reasoning"
-        if any(kw in lower for kw in ("story", "write", "creative", "poem", "essay")):
-            return "creative_writing"
-        return "general_qa"

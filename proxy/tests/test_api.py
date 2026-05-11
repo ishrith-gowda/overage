@@ -217,7 +217,7 @@ class TestCallsEndpoints:
         assert call["discrepancy_pct"] is None
 
     @pytest.mark.asyncio
-    async def test_list_calls_includes_estimation_summary_when_present(
+    async def test_list_calls_includes_estimation_fields(
         self,
         client: httpx.AsyncClient,
         test_api_key: str,
@@ -249,6 +249,91 @@ class TestCallsEndpoints:
         """GET /v1/calls/{id} returns 404 for nonexistent call."""
         response = await client.get(
             "/v1/calls/99999",
+            headers={"X-API-Key": test_api_key},
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_get_call_detail_returns_prd_flat_shape_with_estimation(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        sample_call_log: APICallLog,
+        sample_estimation: EstimationResult,
+        db_session: Any,
+    ) -> None:
+        """GET /v1/calls/{id} returns PRD §5 flat JSON with nested estimation object."""
+        await db_session.commit()
+
+        response = await client.get(
+            f"/v1/calls/{sample_call_log.id}",
+            headers={"X-API-Key": test_api_key},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == sample_call_log.id
+        assert data["provider"] == "openai"
+        assert data["model"] == "o3"
+        assert data["endpoint"] == "/v1/chat/completions"
+        assert data["prompt_hash"] == sample_call_log.prompt_hash
+        assert data["prompt_length_chars"] == 500
+        assert data["answer_length_chars"] == 1000
+        assert data["reported_reasoning_tokens"] == 10000
+        assert isinstance(data["raw_usage_json"], dict)
+        assert "completion_tokens_details" in data["raw_usage_json"]
+        assert data["request_id"] == "req_test_001"
+        est = data["estimation"]
+        assert est is not None
+        assert est["palace_estimated_tokens"] == sample_estimation.palace_estimated_tokens
+        assert est["palace_confidence_low"] == sample_estimation.palace_confidence_low
+        assert est["palace_confidence_high"] == sample_estimation.palace_confidence_high
+        assert est["palace_model_version"] == sample_estimation.palace_model_version
+        assert est["timing_estimated_tokens"] == sample_estimation.timing_estimated_tokens
+        assert est["timing_tps_used"] == sample_estimation.timing_tps_used
+        assert est["timing_r_squared"] == sample_estimation.timing_r_squared
+        assert est["combined_estimated_tokens"] == sample_estimation.combined_estimated_tokens
+        assert est["discrepancy_pct"] == sample_estimation.discrepancy_pct
+        assert est["dollar_impact"] == sample_estimation.dollar_impact
+        assert est["signals_agree"] is sample_estimation.signals_agree
+        assert est["domain_classification"] == sample_estimation.domain_classification
+        assert est["estimated_at"] is not None
+
+    @pytest.mark.asyncio
+    async def test_get_call_detail_returns_null_estimation_when_missing(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        sample_call_log: APICallLog,
+        db_session: Any,
+    ) -> None:
+        """GET /v1/calls/{id} includes estimation=null when no row exists."""
+        await db_session.commit()
+
+        response = await client.get(
+            f"/v1/calls/{sample_call_log.id}",
+            headers={"X-API-Key": test_api_key},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == sample_call_log.id
+        assert data["estimation"] is None
+
+    @pytest.mark.asyncio
+    async def test_get_call_detail_other_user_call_returns_404(
+        self,
+        client: httpx.AsyncClient,
+        test_api_key: str,
+        stranger_call_log: APICallLog,
+        db_session: Any,
+    ) -> None:
+        """Calls belonging to another user are not visible (404)."""
+        await db_session.commit()
+
+        response = await client.get(
+            f"/v1/calls/{stranger_call_log.id}",
             headers={"X-API-Key": test_api_key},
         )
 

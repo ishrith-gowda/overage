@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from proxy.api.auth import validate_api_key
+from proxy.config import get_settings
 from proxy.estimation.aggregator import DiscrepancyAggregator
 from proxy.estimation.palace import PALACEEstimator
 from proxy.estimation.timing import TimingEstimator
@@ -252,17 +253,12 @@ async def get_call_detail(
             status_code=404, content={"error": "Call not found", "error_code": "NOT_FOUND"}
         )  # type: ignore[return-value]
 
-    call_dict = _call_to_dict(call)
-
-    # Fetch estimation
+    # Fetch estimation row (separate query keeps SQL simple)
     est_stmt = select(EstimationResult).where(EstimationResult.call_id == call_id)
     est_result = await session.execute(est_stmt)
     estimation = est_result.scalar_one_or_none()
 
-    return {
-        "call": call_dict,
-        "estimation": _estimation_to_dict(estimation) if estimation else None,
-    }
+    return _call_detail_public_dict(call, estimation)
 
 
 # ============================================================================
@@ -735,8 +731,10 @@ async def _record_and_estimate(
             session.add(call_log)
             await session.flush()
 
-            # Run estimation if available
-            if palace_estimator and timing_estimator and aggregator:
+            # Run estimation only when enabled (PALACE may use deterministic placeholder
+            # when weights are missing; see proxy/estimation/palace.py).
+            settings = get_settings()
+            if settings.estimation_enabled and palace_estimator and timing_estimator and aggregator:
                 palace_pred = await palace_estimator.predict(prompt_text[:2000], "")
                 timing_est = await timing_estimator.estimate(
                     model=model,
@@ -869,4 +867,36 @@ def _estimation_to_dict(est: EstimationResult) -> dict[str, Any]:
         "signals_agree": est.signals_agree,
         "domain_classification": est.domain_classification,
         "estimated_at": est.estimated_at.isoformat() if est.estimated_at else None,
+    }
+
+
+def _call_detail_public_dict(
+    call: APICallLog,
+    estimation: EstimationResult | None,
+) -> dict[str, Any]:
+    """Build PRD §5 flat JSON for ``GET /v1/calls/{call_id}``."""
+    try:
+        parsed = json.loads(call.raw_usage_json or "{}")
+    except json.JSONDecodeError:
+        parsed = {}
+    raw_usage_json: dict[str, Any] = parsed if isinstance(parsed, dict) else {}
+
+    return {
+        "id": call.id,
+        "provider": call.provider,
+        "model": call.model,
+        "endpoint": call.endpoint,
+        "prompt_hash": call.prompt_hash,
+        "prompt_length_chars": call.prompt_length_chars,
+        "answer_length_chars": call.answer_length_chars,
+        "reported_input_tokens": call.reported_input_tokens,
+        "reported_output_tokens": call.reported_output_tokens,
+        "reported_reasoning_tokens": call.reported_reasoning_tokens,
+        "total_latency_ms": call.total_latency_ms,
+        "ttft_ms": call.ttft_ms,
+        "is_streaming": call.is_streaming,
+        "raw_usage_json": raw_usage_json,
+        "timestamp": call.timestamp.isoformat() if call.timestamp else None,
+        "request_id": call.request_id,
+        "estimation": _estimation_to_dict(estimation) if estimation else None,
     }

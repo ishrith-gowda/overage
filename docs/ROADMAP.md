@@ -29,6 +29,7 @@ When a phase completes, the agent updates this table, the **Status** field of th
 
 | Date | Phase / Subtask | PR | Commit | Note |
 |------|-----------------|----|--------|------|
+| 2026-05-11 | Phase 3 — PRD §5 call detail + PALACE placeholder + dashboard inspector | TBD | TBD | Flat `GET /v1/calls/{id}`; `PalacePrediction.deterministic_from_prompt_answer` when ML not loaded and `ESTIMATION_ENABLED=true`; background estimation skipped when `ESTIMATION_ENABLED=false`; integration tests + Streamlit detail panel |
 | 2026-05-10 | Phase 0.5 / 0.10 + Phase 1 ledger accuracy | — | — | Alembic smoke in `foundation-quickstart` + `test_migrations_smoke.py`; dev startup runs `alembic upgrade head` for file-backed DBs; ROADMAP §1.3 / Phase 1 / §3 aligned with tests and `benchmark.py` semantics |
 | 2026-05-10 | Phase 0 verification (ledger refresh) | #47 | merged | `verify-python`, auth/request-id tests, CI `foundation-quickstart`, ddtrace-safe pytest |
 | 2026-05-10 | 7.6 / 7.7 | #45 | tip of `docs/cursor-rule-contributing-workflow` | trailer-cleanup tooling, manual-merge doc |
@@ -482,7 +483,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 **Status.** `done` (closed 2026-04-07).
 
-**PR refs.** [#17](https://github.com/ishrith-gowda/overage/pull/17) (merged 2026-04-07).
+**PR refs.** [#17](https://github.com/ishrith-gowda/overage/pull/17) (merged 2026-04-07); **Phase 3 PRD compliance** (flat call detail, deterministic PALACE placeholder, dashboard inspector, tests) — PR **TBD** (2026-05-11).
 
 **PRD coverage.** Story 3 (full); Story 5 (data layer — dashboard column added in Phase 5).
 
@@ -493,19 +494,19 @@ This is the long section. Each phase has the same shape; copy it as a template w
 | ID | Subtask | Acceptance criterion | Status |
 |----|---------|----------------------|--------|
 | 3.1 | Add `EstimationResult` ORM model populated by background task | After a call, `EstimationResult` row exists with PALACE + timing fields | done |
-| 3.2 | Wire `proxy/estimation/palace.py::PALACEEstimator.predict` (with optional `[ml]` extra) | When `[ml]` installed, returns mean + confidence interval; when not installed, returns deterministic placeholder so tests pass | done |
+| 3.2 | Wire `proxy/estimation/palace.py::PALACEEstimator.predict` (with optional `[ml]` extra) | With `[ml]` + weights on disk: neural mean + CI; with `ESTIMATION_ENABLED=true` but model not loaded: **`PalacePrediction.deterministic_from_prompt_answer`** (`palace_model_version=placeholder-deterministic-v1`); with `ESTIMATION_ENABLED=false`: **`predict` returns `None`** and the background path skips estimation (no fabricated PALACE row) | done |
 | 3.3 | Wire `proxy/estimation/timing.py::TimingEstimator.estimate` | Returns `(estimated_tokens, tps_used, r_squared)` from latency_ms × profiled TPS | done |
 | 3.4 | Wire `proxy/estimation/aggregator.py::DiscrepancyAggregator.aggregate_single_call` | Combines PALACE + timing into one `combined_estimated_tokens` and a `discrepancy_pct` | done |
 | 3.5 | Update `GET /v1/calls` response to include `estimated_reasoning_tokens`, `discrepancy_pct`, `timing_r_squared`, `timing_estimated_tokens`, `signals_agree`, `dollar_impact` | Each row carries those keys (or `null` if estimation has not run) | done |
-| 3.6 | Update `GET /v1/calls/{id}` to return `estimation` object with full PALACE + timing detail | Response shape matches PRD §5 example | done |
-| 3.7 | Dashboard call-detail page renders the estimation block | Manual screenshot in PR description | done |
-| 3.8 | Unit + integration tests for aggregator and updated routes | `proxy/tests/test_aggregator.py`, `test_api.py::test_list_calls_includes_estimation_fields` | done |
+| 3.6 | Update `GET /v1/calls/{id}` to return `estimation` object with full PALACE + timing detail | **Flat** JSON body matches PRD §5 (telemetry + `raw_usage_json` + nested `estimation`); not the legacy `{ "call", "estimation" }` wrapper | done |
+| 3.7 | Dashboard call-detail page renders the estimation block | Streamlit **call-detail inspector** loads `GET /v1/calls/{id}` and renders PALACE + timing + combined JSON; attach a UI screenshot to the PR when this panel changes | done |
+| 3.8 | Unit + integration tests for aggregator and updated routes | `test_aggregator.py`, `test_api.py::test_list_calls_includes_estimation_fields`, **`test_api.py::TestCallsEndpoints::test_get_call_detail_*`**, **`test_palace.py`** | done |
 
 **Test plan.**
 
-- Unit: `test_aggregator.py` (signal combination, signal-agreement boundary at 20%), `test_timing.py` (TPS lookup, R² calc).
-- Integration: `test_api.py::test_list_calls_includes_estimation_fields` after a call has been recorded.
-- Manual smoke: dashboard call-detail view shows reported, palace estimate, timing estimate, combined, discrepancy.
+- Unit: `test_aggregator.py` (signal combination, signal-agreement boundary at 20%), `test_timing.py` (TPS lookup, R² calc), **`test_palace.py`** (deterministic placeholder + `predict` matrix).
+- Integration: `test_api.py::test_list_calls_includes_estimation_fields` after a call has been recorded; **`test_get_call_detail_returns_prd_flat_shape_with_estimation`**, **`test_get_call_detail_returns_null_estimation_when_missing`**, **`test_get_call_detail_other_user_call_returns_404`**.
+- Manual smoke: dashboard **Call detail — full estimation block** panel shows nested estimation JSON for a selected call id.
 
 **Definition of done.**
 
@@ -513,9 +514,9 @@ This is the long section. Each phase has the same shape; copy it as a template w
 - [x] PR #17 merged with green CI.
 - [x] Dashboard renders estimation columns.
 
-**Rollback plan.** `ESTIMATION_ENABLED=false` flips off the background task; the calls list will return `null` estimation fields without breaking any consumer (clients are expected to handle `null` per PRD §5). Revert PR for code-level rollback. No migration in this phase.
+**Rollback plan.** `ESTIMATION_ENABLED=false` skips PALACE/timing/aggregator persistence (call logs still record); list/detail return `null` estimation fields without breaking consumers (PRD §5). Revert PR for code-level rollback. No migration in this phase.
 
-**Related files.** `proxy/estimation/palace.py`, `proxy/estimation/timing.py`, `proxy/estimation/aggregator.py`, `proxy/api/routes.py`, `proxy/storage/models.py`, `dashboard/app.py`, `proxy/tests/test_aggregator.py`, `proxy/tests/test_timing.py`.
+**Related files.** `proxy/estimation/palace.py`, `proxy/estimation/timing.py`, `proxy/estimation/aggregator.py`, `proxy/api/routes.py`, `proxy/storage/models.py`, `dashboard/app.py`, `sdk/overage/client.py`, `proxy/tests/test_aggregator.py`, `proxy/tests/test_timing.py`, `proxy/tests/test_palace.py`, `proxy/tests/test_api.py`, `proxy/tests/conftest.py`.
 
 **Risks (closed).**
 
@@ -1534,6 +1535,7 @@ This section records every material change to this document and the program. New
 
 | Date | Event | Detail |
 |------|-------|--------|
+| 2026-05-11 | Phase 3 PRD compliance (post-audit) | Flat `GET /v1/calls/{id}`; deterministic PALACE placeholder when ML absent; `_record_and_estimate` gated on `ESTIMATION_ENABLED`; dashboard call-detail inspector; `test_palace.py` + expanded `test_api.py`; SDK `get_call`; `docs/API.md`; issue template `roadmap_phase_closure.md`. PR **TBD**. |
 | 2026-05-10 | Phase 0.5 / 0.10 / Phase 1 ledger + dev schema | Alembic smoke in CI quickstart + `pytest proxy/tests/test_migrations_smoke.py`; development uses `alembic upgrade head` for file-backed SQLite/Postgres; ROADMAP §1.3 / Phase 1 / §3 matrix aligned with code (`LLMProvider`, `ProviderError`, headers, streaming, benchmark semantics). |
 | 2026-05-10 | Phase 0 ledger aligned with PR #47 | Merged `origin/main` into this branch; Phase 0 PR refs, subtasks 0.3–0.10, test plan, and **Recent landings** updated for `verify-python`, `foundation-quickstart` CI, request-id + invalid-key tests. |
 | 2026-05-10 | **`docs/ROADMAP.md` consolidated to single source of truth** | Replaced the prior 108-line product-only roadmap with this 1500+ line ledger. Stripped the phase tables from `docs/DEV_INFRASTRUCTURE.md` so it remains the canonical *account/platform inventory* but no longer competes with this doc on phase numbering. Updated `CONTRIBUTING.md` reference to point at this section. PR ref: this PR. |

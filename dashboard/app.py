@@ -1,11 +1,12 @@
-"""Overage Streamlit Dashboard — 5-panel audit interface.
+"""Overage Streamlit Dashboard — audit interface.
 
 Panels:
   1. Summary metrics row (KPIs)
   2. Time-series discrepancy chart
   3. Per-call table with color-coded discrepancy
-  4. Timing scatter plot with regression line
-  5. Cost impact calculator
+  4. Call detail inspector (``GET /v1/calls/{id}`` + full estimation JSON)
+  5. Timing scatter plot with regression line
+  6. Cost impact calculator
 
 Reference: PRD.md Section 3 (User Stories), ARCHITECTURE.md Section 2.
 """
@@ -209,6 +210,21 @@ def fetch_timeseries(url: str, key: str, params_key: str) -> list[dict[str, Any]
         return data.get("data", [])
     except Exception:
         return []
+
+
+@st.cache_data(ttl=30 if auto_refresh else 300)
+def fetch_call_detail(url: str, key: str, call_id: int) -> dict[str, Any] | None:
+    """Fetch a single call with full PRD §5 estimation payload (``GET /v1/calls/{id}``)."""
+    try:
+        resp = httpx.get(
+            f"{url}/v1/calls/{call_id}",
+            headers={"X-API-Key": key} if key else {},
+            timeout=20.0,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except Exception:
+        return None
 
 
 @st.cache_data(ttl=60)
@@ -452,6 +468,47 @@ if calls:
     else:
         st.dataframe(display_df, use_container_width=True, height=400)
     st.caption(f"Showing {len(df)} calls. Use sidebar filters to narrow results.")
+
+    st.subheader("Call detail — full estimation block")
+    st.caption(
+        "Uses **GET /v1/calls/{id}** (PRD §5): PALACE interval, timing TPS and R², "
+        "combined estimate, discrepancy %, and dollar impact."
+    )
+    id_opts = sorted({int(c["id"]) for c in calls if c.get("id") is not None}, reverse=True)
+    if id_opts:
+        chosen = st.selectbox(
+            "Select call id",
+            options=id_opts,
+            format_func=lambda i: f"#{i}",
+            key="overage_call_detail_select",
+        )
+        detail = fetch_call_detail(api_url, api_key, chosen)
+        if detail is None:
+            st.warning("Could not load call detail — check proxy logs and API key.")
+        else:
+            meta_cols = st.columns(4)
+            with meta_cols[0]:
+                st.metric("Provider", str(detail.get("provider", "—")))
+            with meta_cols[1]:
+                st.metric("Model", str(detail.get("model", "—")))
+            with meta_cols[2]:
+                st.metric("Reported reasoning", f"{detail.get('reported_reasoning_tokens', 0):,}")
+            with meta_cols[3]:
+                st.metric("Latency ms", f"{float(detail.get('total_latency_ms') or 0):,.0f}")
+            c_left, c_right = st.columns(2)
+            with c_left:
+                st.markdown("**Estimation** (PALACE + timing + combined)")
+                est = detail.get("estimation")
+                if est:
+                    st.json(est)
+                else:
+                    st.info(
+                        "No estimation row yet (estimation disabled, background pending, "
+                        "or call recorded before the estimator ran)."
+                    )
+            with c_right:
+                st.markdown("**Provider raw usage**")
+                st.json(detail.get("raw_usage_json") or {})
 else:
     st.info("No calls recorded yet. Start proxying API calls through Overage.")
 

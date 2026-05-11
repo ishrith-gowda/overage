@@ -268,6 +268,30 @@ async def stranger_user(db_session: AsyncSession) -> User:
 
 
 @pytest_asyncio.fixture
+async def stranger_call_log(db_session: AsyncSession, stranger_user: User) -> APICallLog:
+    """API call owned by ``stranger_user`` (not visible to ``test_api_key`` tenant)."""
+    call = APICallLog(
+        user_id=stranger_user.id,
+        provider="openai",
+        model="o3-mini",
+        prompt_hash="deadbeef" * 8,
+        prompt_length_chars=120,
+        answer_length_chars=200,
+        reported_input_tokens=10,
+        reported_output_tokens=100,
+        reported_reasoning_tokens=500,
+        total_latency_ms=1200.0,
+        ttft_ms=100.0,
+        is_streaming=False,
+        raw_usage_json=json.dumps({"completion_tokens": 100}),
+        request_id="req_stranger_001",
+    )
+    db_session.add(call)
+    await db_session.flush()
+    return call
+
+
+@pytest_asyncio.fixture
 async def stranger_discrepancy_alert(
     db_session: AsyncSession, stranger_user: User
 ) -> DiscrepancyAlert:
