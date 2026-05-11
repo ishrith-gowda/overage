@@ -51,7 +51,7 @@ dependencies = [
     "scipy>=1.14,<2.0",
     "scikit-learn>=1.6,<2.0",
     # --- Utilities ---
-    "python-multipart>=0.0.18",   # FastAPI form/file upload support
+    "python-multipart>=0.0.28",   # FastAPI form/file upload support
 ]
 
 [project.optional-dependencies]
