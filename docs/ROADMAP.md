@@ -11,7 +11,7 @@
 ---
 
 ## Active phase pointer
-
+0
 | Field | Value |
 |-------|-------|
 | **Active phase** | **Phase 7 — Quality Hardening / GitHub Hygiene** |
@@ -171,7 +171,7 @@ Dependencies are recorded explicitly per phase. The high-level shape is:
 Phase 0 ── Phase 1 ─┬─ Phase 2 ─┬─ Phase 3 ─ Phase 4 ─ Phase 5 ─ Phase 6 ─ Phase 7
                     │           │
                     └─ Phase 13 ┘
-                    
+
 Phase 7 ─┬─ Phase 8 ─┬─ Phase 11 ─ Phase 16
          │           │
          ├─ Phase 9 ─┤
@@ -512,6 +512,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 - [x] All subtasks done.
 - [x] PR #17 merged with green CI.
+- [ ] PR #52 merged with green CI (Phase 3 PRD compliance: flat call detail, placeholder PALACE path, dashboard inspector, tests) — track until squash-merge to `main`.
 - [x] Dashboard renders estimation columns.
 
 **Rollback plan.** `ESTIMATION_ENABLED=false` skips PALACE/timing/aggregator persistence (call logs still record); list/detail return `null` estimation fields without breaking consumers (PRD §5). Revert PR for code-level rollback. No migration in this phase.
@@ -522,6 +523,44 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 - PALACE inference hot-loop blocking the event loop — mitigated by lazy import of torch/transformers/peft in `proxy/estimation/palace.py` and running inference in a thread pool when `[ml]` is installed.
 - Timing R² noisy on short responses — mitigated by computing R² over a sliding profiling window in `TimingEstimator.profile_update` rather than per-call.
+
+#### Phase 0–3 — closure summary, mocks, and gaps (2026-05-11)
+
+**Are Phases 0–3 “all done”?** Yes, for **ledger / automated-test** completion: every Phase **0–3** row in §5 remains **`done`**, CI exercises the cited proxy and API paths, and **Phase 3 post-audit compliance** is implemented on branch **`feat/phase-3-prd-compliance`** in **[PR #52](https://github.com/ishrith-gowda/overage/pull/52)** (flat `GET /v1/calls/{id}`, deterministic PALACE placeholder when ML is absent, dashboard call-detail inspector, `test_palace.py`, SDK `get_call`, docs). **Treat compliance as fully landed only after PR #52 is merged to `main` with green CI** (then update this subsection and **Recent landings** “Commit” column from `TBD` to the squash-merge SHA).
+
+**What is mocked or synthetic today (not a substitute for production traffic)**
+
+| Area | What runs in CI / default tests | What is still manual or live-provider |
+|------|--------------------------------|--------------------------------------|
+| OpenAI / Anthropic HTTP | **httpx mocks** in `test_proxy_route.py` and provider unit tests | Real `curl`/SDK calls with provider keys (README “Live verification” blocks). |
+| Streaming SSE | Mocked SSE fixtures in tests | Long-lived **live** streams (extended thinking, chunk edge cases) — maintainer smoke. |
+| `pytest` + `conftest.py` | **`ESTIMATION_ENABLED=false`** (no background PALACE/timing rows during most tests) | Local/prod with **`ESTIMATION_ENABLED=true`**: placeholder or real PALACE depending on weights and `[ml]`. |
+| PALACE neural path | **Not** exercised end-to-end in default CI typecheck/test (no `[ml]` requirement on the main test job) | Install **`[ml]`**, place weights at `palace_model_path`, load model — see `proxy/estimation/palace.py`. |
+| Latency DoD (Phase 1–2) | `scripts/benchmark.py` exists | **p50/p99** budget is **not** continuously verified in CI; run `make benchmark` with proxy listening (README). |
+
+**Out of scope for Phases 0–3 (documented elsewhere in this ledger)**
+
+- **Gemini / Google** provider parity — later phase (e.g. Phase 13).
+- **Production** hardening, multi-tenant RBAC, deploy runbooks — Phases 8–11+.
+- **Self-serve onboarding** product polish beyond auth/register — later stories.
+- **PR #52 manual screenshot** — human step only; see **“PR #52 — manual screenshot (exact steps)”** below.
+
+**PR #52 — manual screenshot (exact steps)**
+
+These steps produce evidence for Phase **3.7** (dashboard shows full estimation JSON from `GET /v1/calls/{id}`). Use a machine where **ports 8000 and 8501** are free.
+
+1. **Clone and env** (if you do not already have the PR checked out): `git fetch origin && git checkout feat/phase-3-prd-compliance && git pull` (or merge **#52** into your working branch).
+2. **Install** (once per venv): from repo root, `COPYFILE_DISABLE=1 make install-dev`.
+3. **Optional `.env`**: `cp .env.example .env` — for demo-only screenshots you do **not** need OpenAI/Anthropic keys; you **do** need a writable `DATABASE_URL` if SQLite on removable media fails (README notes).
+4. **Terminal A — proxy**: run `make run` and wait until it is listening (**`curl -sS http://127.0.0.1:8000/health`** returns JSON with `"status":"healthy"` or `"degraded"` with DB ok).
+5. **Terminal B — demo data** (creates users, calls, and **EstimationResult** rows **without** provider keys or the running proxy): run **`make demo`** once (same DB file the proxy will use — typically **`overage_dev.db`** from `.env`; if the proxy is already running, **stop it first** so the script is not blocked, then start the proxy again after demo finishes). **Copy the full line** **`Demo API key: ovg_live_demo_key_…`** from the script output (the key is also the literal string printed at the end of the banner).
+6. **Terminal C — dashboard**: run **`make run-dashboard`**. If the browser does not open automatically, go to **`http://localhost:8501`** (Streamlit default).
+7. In the **sidebar**: leave **Proxy API URL** as **`http://localhost:8000`** unless your proxy runs elsewhere; paste the **API Key** from step 5 into **API Key** (password field).
+8. Wait for the main page to finish **“Fetching data from Overage API…”** with no connection error.
+9. Scroll to **“📋 Recent Calls”** and confirm the table lists at least one call (from `make demo`).
+10. Scroll slightly further to the subheading **“Call detail — full estimation block”** (directly under the recent-calls table).
+11. In **“Select call id”**, pick any listed id (defaults to the first). The **“Estimation (PALACE + timing + combined)”** panel should show a **JSON** object — **`make demo`** seeds matching **`EstimationResult`** rows. If you still see **“No estimation row yet…”**, the dashboard is pointing at a different DB than `make demo` (align **`DATABASE_URL`** in `.env` with the file `demo_data` used), or calls were created without estimations — then either re-run **`make demo`** after fixing `.env`, or set **`ESTIMATION_ENABLED=true`**, restart **`make run`**, proxy at least one call, and refresh the dashboard.
+12. **Capture**: macOS **Shift+Cmd+4** (region) or **Shift+Cmd+3** (full screen); Windows **Win+Shift+S**; include the **Call detail** subheading and the **estimation JSON** (and optionally the call id selector). **Upload** that image file to GitHub **PR #52** (drag into a comment or paste into the description) and tick the **manual screenshot** checkbox in the PR body if present.
 
 ---
 
@@ -1535,6 +1574,7 @@ This section records every material change to this document and the program. New
 
 | Date | Event | Detail |
 |------|-------|--------|
+| 2026-05-11 | ROADMAP — Phase 0–3 closure notes + PR #52 screenshot runbook | Phase 3 § “closure summary, mocks, and gaps”; manual screenshot steps for dashboard call-detail panel. |
 | 2026-05-11 | Phase 3 PRD compliance (post-audit) | PR [#52](https://github.com/ishrith-gowda/overage/pull/52): flat `GET /v1/calls/{id}`; deterministic PALACE placeholder when ML absent; `_record_and_estimate` gated on `ESTIMATION_ENABLED`; dashboard call-detail inspector; `test_palace.py` + expanded `test_api.py`; SDK `get_call`; `docs/API.md`; issue template `roadmap_phase_closure.md`. |
 | 2026-05-10 | Phase 0.5 / 0.10 / Phase 1 ledger + dev schema | Alembic smoke in CI quickstart + `pytest proxy/tests/test_migrations_smoke.py`; development uses `alembic upgrade head` for file-backed SQLite/Postgres; ROADMAP §1.3 / Phase 1 / §3 matrix aligned with code (`LLMProvider`, `ProviderError`, headers, streaming, benchmark semantics). |
 | 2026-05-10 | Phase 0 ledger aligned with PR #47 | Merged `origin/main` into this branch; Phase 0 PR refs, subtasks 0.3–0.10, test plan, and **Recent landings** updated for `verify-python`, `foundation-quickstart` CI, request-id + invalid-key tests. |
