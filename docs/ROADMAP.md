@@ -29,7 +29,7 @@ When a phase completes, the agent updates this table, the **Status** field of th
 
 | Date | Phase / Subtask | PR | Commit | Note |
 |------|-----------------|----|--------|------|
-| 2026-05-11 | Phase 4.5 — alert auto-persist + honoring/SDK tests + ledger | open PR (`feat/phase4-alert-persistence-and-tests`) | pending merge | After squash-merge to `main`: set PR # and Commit SHA in this row. |
+| 2026-05-11 | Phase 4.5 — alert auto-persist + honoring/SDK tests + ledger | [#53](https://github.com/ishrith-gowda/overage/pull/53) | `b0d4565` | Squash-merged to `main`; `alert_persistence`, tests, ROADMAP closure, SDK ruff TC006 casts. |
 | 2026-05-11 | Phase 3.7 — headless dashboard evidence capture | — | pending | `scripts/capture_dashboard_evidence.py`, `make dashboard-screenshot`, optional `.[screenshot]` (Playwright); `proxy/demo_constants.py` single-sources demo API key |
 | 2026-05-11 | Phase 3 — PRD §5 call detail + PALACE placeholder + dashboard inspector | [#52](https://github.com/ishrith-gowda/overage/pull/52) | TBD | Flat `GET /v1/calls/{id}`; `PalacePrediction.deterministic_from_prompt_answer` when ML not loaded and `ESTIMATION_ENABLED=true`; background estimation skipped when `ESTIMATION_ENABLED=false`; integration tests + Streamlit detail panel |
 | 2026-05-10 | Phase 0.5 / 0.10 + Phase 1 ledger accuracy | — | — | Alembic smoke in `foundation-quickstart` + `test_migrations_smoke.py`; dev startup runs `alembic upgrade head` for file-backed DBs; ROADMAP §1.3 / Phase 1 / §3 aligned with tests and `benchmark.py` semantics |
@@ -93,7 +93,7 @@ A complete merged-PR list is one `gh pr list --state merged --limit 100` away; t
 
 **April 2026 close (PRs #14–#18, plus [#52](https://github.com/ishrith-gowda/overage/pull/52) for Phase 3 PRD compliance)** is **`done`** on `main`: every Phase **0–4** row in §5 is marked **`done`**, and default CI (`lint` → `typecheck` → `pytest proxy/tests/` excluding `slow`) matches what `make check` runs locally.
 
-**May 2026 follow-up (Phase 4.5)** — automatic **`DiscrepancyAlert`** inserts from the sliding window after estimation, pytest coverage for honoring % and the SDK client, and **`DISCREPANCY_ALERT_THRESHOLD_PCT`** — is implemented on branch **`feat/phase4-alert-persistence-and-tests`** until its PR is squash-merged to `main` (see **Recent landings**, **Phase 4 → Definition of done** unchecked item, and **§5 → Phase 0–4 — closure summary, mocks, and honest limits** for what remains mocked or manual).
+**May 2026 follow-up (Phase 4.5)** — automatic **`DiscrepancyAlert`** inserts from the sliding window after estimation, pytest coverage for honoring % and the SDK client, and **`DISCREPANCY_ALERT_THRESHOLD_PCT`** — landed on **`main`** via **[PR #53](https://github.com/ishrith-gowda/overage/pull/53)** (squash `b0d4565`). Mock vs live limits are still documented in **§5 → Phase 0–4 — closure summary, mocks, and honest limits**.
 
 ### 1.1 Vision (one paragraph)
 
@@ -536,7 +536,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 
 #### Phase 0–4 — closure summary, mocks, and honest limits (2026-05-11)
 
-**Are Phases 0–4 “all done”?** **Yes, for ledger / code / default CI:** every **Phase 0–4** row in §5 is marked **`done`**, `make check` (lint, mypy strict, `pytest proxy/tests/` excluding `slow`) is the local mirror of the main CI test gate, and **Phase 3 PRD compliance** from **[PR #52](https://github.com/ishrith-gowda/overage/pull/52)** is on **`main`**. **Phase 4.5** (auto-persisted discrepancy alerts from the sliding window, honoring-rate pytest, SDK smoke tests, config/env docs) is implemented on branch **`feat/phase4-alert-persistence-and-tests`** — treat it as **fully part of “closed Phase 4 behaviour” only after that PR is squash-merged to `main` with green CI**; until then the proxy on `main` alone may still lack the persistence path.
+**Are Phases 0–4 “all done”?** **Yes, for ledger / code / default CI:** every **Phase 0–4** row in §5 is marked **`done`**, `make check` (lint, mypy strict, `pytest proxy/tests/` excluding `slow`) is the local mirror of the main CI test gate, **Phase 3 PRD compliance** from **[PR #52](https://github.com/ishrith-gowda/overage/pull/52)** is on **`main`**, and **Phase 4.5** (sliding-window alert auto-persist + tests + env) is on **`main`** via **[PR #53](https://github.com/ishrith-gowda/overage/pull/53)**. The table below still lists what is **mocked** or **not continuously proven** in CI.
 
 **What that does *not* mean.** No claim that every north-star or README number is **machine-gated** forever: human onboarding time (Story 7), dashboard screenshot evidence (§3.7), live-provider latency percentiles, and loaded PALACE neural inference are **partially** or **fully** outside default CI — see the table below.
 
@@ -612,7 +612,7 @@ These steps produce the same evidence without automation. Use a machine where **
 
 **Status.** `done` (closed 2026-04-07).
 
-**PR refs.** [#18](https://github.com/ishrith-gowda/overage/pull/18) (merged 2026-04-07). **Post-close (2026-05):** sliding-window **auto-insert** of `DiscrepancyAlert`, honoring-rate pytest, SDK client smoke tests, env + ROADMAP alignment — open as **`feat/phase4-alert-persistence-and-tests`** until squash-merged to `main`; then add the PR link next to #18 above.
+**PR refs.** [#18](https://github.com/ishrith-gowda/overage/pull/18) (merged 2026-04-07); **[#53](https://github.com/ishrith-gowda/overage/pull/53)** (merged 2026-05-11, squash `b0d4565`) — post-close sliding-window **auto-insert** of `DiscrepancyAlert`, honoring-rate pytest, SDK client smoke tests, env + ROADMAP alignment.
 
 **PRD coverage.** Story 4 (full); Story 8 (full); Story 9 (data model only — ack endpoint shipped in Phase 5, webhook delivery in Phase 15); Story 10 (full).
 
@@ -643,7 +643,7 @@ These steps produce the same evidence without automation. Use a machine where **
 - [x] All subtasks done.
 - [x] PR #18 merged with green CI.
 - [x] Demo data confirms honoring rate calculation matches expected %.
-- [ ] **Post-audit (2026-05):** Phase 4.5 follow-up PR squash-merged to `main` with green CI (wires `alert_persistence` into `_record_and_estimate`; adds `test_phase4_alert_persistence.py`, `test_sdk_client.py`, `TestSummaryHonoringRate`, `DISCREPANCY_ALERT_THRESHOLD_PCT`). Until this merges, `main` may lack automatic alert inserts even though §5 subtask rows read `done` for the April close.
+- [x] **Post-audit (2026-05):** Phase 4.5 follow-up **[PR #53](https://github.com/ishrith-gowda/overage/pull/53)** squash-merged to `main` (`b0d4565`): wires `alert_persistence` into `_record_and_estimate`; adds `test_phase4_alert_persistence.py`, `test_sdk_client.py`, `TestSummaryHonoringRate`, **`DISCREPANCY_ALERT_THRESHOLD_PCT`**.
 
 **Rollback plan.** No migration; revert PR. If only the alert subsystem needs disabling, set **`DISCREPANCY_ALERT_THRESHOLD_PCT=999`** (or any value **≥ 999**) so no automatic row is inserted; list/ack APIs and summaries keep working.
 
@@ -658,7 +658,7 @@ These steps produce the same evidence without automation. Use a machine where **
 
 **Why.** The April close (PR #18) shipped summary, `group_by`, timeseries, list/ack APIs, and the `DiscrepancyAlert` **schema**. A later audit found **no automatic insert** from proxied traffic: `record_discrepancy` ran, but `detect_sustained_discrepancy` was never invoked in production code. The May follow-up wires `proxy/estimation/alert_persistence.py::maybe_persist_sustained_discrepancy_alert` after each `record_discrepancy` inside `_record_and_estimate`, adds `Settings.discrepancy_alert_threshold_pct` / **`DISCREPANCY_ALERT_THRESHOLD_PCT`**, and locks behaviour in **`proxy/tests/test_phase4_alert_persistence.py`**.
 
-**What is still not “live-proven” in CI.** The integration test **`test_record_and_estimate_persists_alert_when_window_sustained`** uses a **patched** `aggregate_single_call` (stable discrepancy %) plus patched `get_settings` / test DB factory so fifty background commits deterministically cross the threshold; it does **not** substitute for fifty real OpenAI/Anthropic round-trips. Production behaviour uses the real aggregator + PALACE/timing when **`ESTIMATION_ENABLED=true`**. After merge, validate once with keys if you need vendor-faithful drift.
+**What is still not “live-proven” in CI.** The integration test **`test_record_and_estimate_persists_alert_when_window_sustained`** uses a **patched** `aggregate_single_call` (stable discrepancy %) plus patched `get_settings` / test DB factory so fifty background commits deterministically cross the threshold; it does **not** substitute for fifty real OpenAI/Anthropic round-trips. Production behaviour uses the real aggregator + PALACE/timing when **`ESTIMATION_ENABLED=true`**. Use provider keys and staging load if you need vendor-faithful drift validation.
 
 ---
 
@@ -1621,8 +1621,9 @@ This section records every material change to this document and the program. New
 
 | Date | Event | Detail |
 |------|-------|--------|
+| 2026-05-11 | PR #53 merged; ROADMAP merge-gate cleared | **[#53](https://github.com/ishrith-gowda/overage/pull/53)** squash to `main` at `b0d4565`; §1.0, Recent landings, Phase 4 PR refs + DoD, §5 closure paragraph, post-close note updated (no “pending merge” / branch-only wording). |
 | 2026-05-11 | ROADMAP — Phase 0–4 closure, mocks table, Phase 4 post-close note | Expanded §5 closure from Phases 0–3 to **0–4**; honest limits table (live vs CI, patched alert integration test, fake SDK clients, Story 7 vs `foundation-quickstart`); Phase 4 **post-close** subsection; fixed stray character after “Active phase pointer”. |
-| 2026-05-10 | Phase 4.5 — alert persistence + tests + ledger (code on branch) | Branch **`feat/phase4-alert-persistence-and-tests`**: `proxy/estimation/alert_persistence.py`, `_record_and_estimate` wiring, `Settings.discrepancy_alert_threshold_pct`, `test_phase4_alert_persistence.py`, `test_sdk_client.py`, `TestSummaryHonoringRate`, `async_sqlite_session_factory`, `mypy_path` + SDK `cast`. Merge to `main` updates Recent landings + Phase 4 PR refs. |
+| 2026-05-10 | Phase 4.5 — alert persistence + tests + ledger | Landed on `main` via **PR #53** (`b0d4565`): `proxy/estimation/alert_persistence.py`, `_record_and_estimate` wiring, `Settings.discrepancy_alert_threshold_pct`, `test_phase4_alert_persistence.py`, `test_sdk_client.py`, `TestSummaryHonoringRate`, `async_sqlite_session_factory`, `mypy_path` + SDK `cast` (ruff TC006 quoted cast targets). |
 | 2026-05-11 | Container scan — Trivy SARIF / GHAS `CodeQL` | Dockerfile drops `curl`, `apt-get upgrade`, Python `HEALTHCHECK`; `.trivyignore` + `ci.yml` `trivyignores`; `docs/DEPLOYMENT.md` + `CONTRIBUTING.md`. |
 | 2026-05-11 | CI — Codecov patch + duplicate CodeQL note | Root `codecov.yml` (patch informational); `CONTRIBUTING.md` + `docs/CODECOV.md` explain stray `CodeQL` (GHAS) vs `CodeQL Analysis` (Actions). |
 | 2026-05-11 | ROADMAP — Phase 0–3 closure notes + PR #52 screenshot runbook | Phase 3 § “closure summary, mocks, and gaps”; manual screenshot steps for dashboard call-detail panel. |
