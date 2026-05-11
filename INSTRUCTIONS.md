@@ -1794,6 +1794,7 @@ All commands are available via `make`. Run `make help` for descriptions.
 | `make install` | Install all dependencies (prod + dev) | Packages installed |
 | `make run` | Start the proxy server (uvicorn, port 8000) | `Uvicorn running on http://0.0.0.0:8000` |
 | `make run-dashboard` | Start the Streamlit dashboard (port 8501) | `You can now view your Streamlit app` |
+| `make dashboard-screenshot` | Headless PNG of call-detail + estimation (Playwright; needs `pip install -e ".[screenshot]"` + `playwright install chromium`) | `Wrote dashboard evidence PNG to artifacts/...` |
 | `make lint` | Run ruff linter + formatter check | `All checks passed!` or error list |
 | `make format` | Auto-format with ruff | Files reformatted |
 | `make typecheck` | Run mypy in strict mode | `Success: no issues found` or error list |

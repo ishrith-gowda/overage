@@ -29,6 +29,7 @@ When a phase completes, the agent updates this table, the **Status** field of th
 
 | Date | Phase / Subtask | PR | Commit | Note |
 |------|-----------------|----|--------|------|
+| 2026-05-11 | Phase 3.7 — headless dashboard evidence capture | — | pending | `scripts/capture_dashboard_evidence.py`, `make dashboard-screenshot`, optional `.[screenshot]` (Playwright); `proxy/demo_constants.py` single-sources demo API key |
 | 2026-05-11 | Phase 3 — PRD §5 call detail + PALACE placeholder + dashboard inspector | [#52](https://github.com/ishrith-gowda/overage/pull/52) | TBD | Flat `GET /v1/calls/{id}`; `PalacePrediction.deterministic_from_prompt_answer` when ML not loaded and `ESTIMATION_ENABLED=true`; background estimation skipped when `ESTIMATION_ENABLED=false`; integration tests + Streamlit detail panel |
 | 2026-05-10 | Phase 0.5 / 0.10 + Phase 1 ledger accuracy | — | — | Alembic smoke in `foundation-quickstart` + `test_migrations_smoke.py`; dev startup runs `alembic upgrade head` for file-backed DBs; ROADMAP §1.3 / Phase 1 / §3 aligned with tests and `benchmark.py` semantics |
 | 2026-05-10 | Phase 0 verification (ledger refresh) | #47 | merged | `verify-python`, auth/request-id tests, CI `foundation-quickstart`, ddtrace-safe pytest |
@@ -543,24 +544,44 @@ This is the long section. Each phase has the same shape; copy it as a template w
 - **Gemini / Google** provider parity — later phase (e.g. Phase 13).
 - **Production** hardening, multi-tenant RBAC, deploy runbooks — Phases 8–11+.
 - **Self-serve onboarding** product polish beyond auth/register — later stories.
-- **PR #52 manual screenshot** — human step only; see **“PR #52 — manual screenshot (exact steps)”** below.
+- **Phase 3.7 dashboard evidence (PNG)** — prefer the **scripted** path below; the numbered **manual** path remains for debugging or when Playwright is unavailable.
 
-**PR #52 — manual screenshot (exact steps)**
+**Preferred — scripted capture (Playwright)**
 
-These steps produce evidence for Phase **3.7** (dashboard shows full estimation JSON from `GET /v1/calls/{id}`). Use a machine where **ports 8000 and 8501** are free.
+From repo root on **`main`** (or any branch with the script), **ports 8000 and 8501 must be free** (stop `make run` / `make run-dashboard` first). One-time setup per venv::
 
-1. **Clone and env** (if you do not already have the PR checked out): `git fetch origin && git checkout feat/phase-3-prd-compliance && git pull` (or merge **#52** into your working branch).
+    pip install -e ".[screenshot]"
+    playwright install chromium
+
+Then::
+
+    make dashboard-screenshot
+
+This runs `scripts/capture_dashboard_evidence.py`: by default creates a **fresh**
+``artifacts/overage_screenshot.db`` (Alembic + ``make demo`` seeding), starts **uvicorn**
++ **Streamlit** headlessly, fills the sidebar with ``proxy.demo_constants.DEMO_PLAINTEXT_API_KEY``,
+waits for **Call detail — full estimation block**, and writes **`artifacts/dashboard_phase37_evidence.png`**
+(both paths are gitignored). Use ``--use-env-database`` to point at your ``.env`` ``DATABASE_URL`` instead
+(advanced). Flags: ``--skip-demo`` (only with ``--use-env-database``), ``--full-page``, ``--output PATH``,
+``--demo-calls N``, ``--demo-days N`` (see ``python scripts/capture_dashboard_evidence.py --help``).
+The script does **not** call the GitHub API — attach the PNG to a PR comment, issue, or doc change yourself if you need it on the tracker.
+
+**Manual screenshot (exact steps)**
+
+These steps produce the same evidence without automation. Use a machine where **ports 8000 and 8501** are free.
+
+1. **Clone and env**: `git fetch origin && git checkout main && git pull` (or your working branch).
 2. **Install** (once per venv): from repo root, `COPYFILE_DISABLE=1 make install-dev`.
 3. **Optional `.env`**: `cp .env.example .env` — for demo-only screenshots you do **not** need OpenAI/Anthropic keys; you **do** need a writable `DATABASE_URL` if SQLite on removable media fails (README notes).
 4. **Terminal A — proxy**: run `make run` and wait until it is listening (**`curl -sS http://127.0.0.1:8000/health`** returns JSON with `"status":"healthy"` or `"degraded"` with DB ok).
-5. **Terminal B — demo data** (creates users, calls, and **EstimationResult** rows **without** provider keys or the running proxy): run **`make demo`** once (same DB file the proxy will use — typically **`overage_dev.db`** from `.env`; if the proxy is already running, **stop it first** so the script is not blocked, then start the proxy again after demo finishes). **Copy the full line** **`Demo API key: ovg_live_demo_key_…`** from the script output (the key is also the literal string printed at the end of the banner).
+5. **Terminal B — demo data** (creates users, calls, and **EstimationResult** rows **without** provider keys or the running proxy): run **`make demo`** once (same DB file the proxy will use — typically **`overage_dev.db`** from `.env`; if the proxy is already running, **stop it first** so the script is not blocked, then start the proxy again after demo finishes). **Copy the full line** **`Demo API key: ovg_live_demo_key_…`** from the script output (the key matches `proxy.demo_constants.DEMO_PLAINTEXT_API_KEY`).
 6. **Terminal C — dashboard**: run **`make run-dashboard`**. If the browser does not open automatically, go to **`http://localhost:8501`** (Streamlit default).
 7. In the **sidebar**: leave **Proxy API URL** as **`http://localhost:8000`** unless your proxy runs elsewhere; paste the **API Key** from step 5 into **API Key** (password field).
 8. Wait for the main page to finish **“Fetching data from Overage API…”** with no connection error.
 9. Scroll to **“📋 Recent Calls”** and confirm the table lists at least one call (from `make demo`).
 10. Scroll slightly further to the subheading **“Call detail — full estimation block”** (directly under the recent-calls table).
 11. In **“Select call id”**, pick any listed id (defaults to the first). The **“Estimation (PALACE + timing + combined)”** panel should show a **JSON** object — **`make demo`** seeds matching **`EstimationResult`** rows. If you still see **“No estimation row yet…”**, the dashboard is pointing at a different DB than `make demo` (align **`DATABASE_URL`** in `.env` with the file `demo_data` used), or calls were created without estimations — then either re-run **`make demo`** after fixing `.env`, or set **`ESTIMATION_ENABLED=true`**, restart **`make run`**, proxy at least one call, and refresh the dashboard.
-12. **Capture**: macOS **Shift+Cmd+4** (region) or **Shift+Cmd+3** (full screen); Windows **Win+Shift+S**; include the **Call detail** subheading and the **estimation JSON** (and optionally the call id selector). **Upload** that image file to GitHub **PR #52** (drag into a comment or paste into the description) and tick the **manual screenshot** checkbox in the PR body if present.
+12. **Capture**: macOS **Shift+Cmd+4** (region) or **Shift+Cmd+3** (full screen); Windows **Win+Shift+S**; include the **Call detail** subheading and the **estimation JSON** (and optionally the call id selector). **Upload** that image file to GitHub (PR comment, issue, or doc change) if you need it recorded in the project tracker.
 
 ---
 
@@ -1574,6 +1595,7 @@ This section records every material change to this document and the program. New
 
 | Date | Event | Detail |
 |------|-------|--------|
+| 2026-05-11 | Phase 3.7 — Playwright dashboard screenshot tooling | `make dashboard-screenshot`, `scripts/capture_dashboard_evidence.py`, `proxy/demo_constants.py`, optional `.[screenshot]` extra; ROADMAP scripted path + `INSTRUCTIONS.md` / `README.md` pointers. |
 | 2026-05-11 | Container scan — Trivy SARIF / GHAS `CodeQL` | Dockerfile drops `curl`, `apt-get upgrade`, Python `HEALTHCHECK`; `.trivyignore` + `ci.yml` `trivyignores`; `docs/DEPLOYMENT.md` + `CONTRIBUTING.md`. |
 | 2026-05-11 | CI — Codecov patch + duplicate CodeQL note | Root `codecov.yml` (patch informational); `CONTRIBUTING.md` + `docs/CODECOV.md` explain stray `CodeQL` (GHAS) vs `CodeQL Analysis` (Actions). |
 | 2026-05-11 | ROADMAP — Phase 0–3 closure notes + PR #52 screenshot runbook | Phase 3 § “closure summary, mocks, and gaps”; manual screenshot steps for dashboard call-detail panel. |

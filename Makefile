@@ -21,7 +21,7 @@ DASH_PORT := 8501
 # Phony targets (these are commands, not files)
 # ---------------------------------------------------------------------------
 .PHONY: install install-dev venv-fresh git-usb-clean strip-macos-appledouble lint format typecheck test test-fast test-unit \
-        test-integration security smoke-live run run-dashboard run-doppler check-doppler secrets-verify sync-env-to-doppler \
+        test-integration security smoke-live run run-dashboard dashboard-screenshot run-doppler check-doppler secrets-verify sync-env-to-doppler \
         codecov-local github-secret-codecov verify-python verify-quickstart \
         docker-up docker-down \
         docker-build migrate migrate-generate seed demo benchmark profile-tps report \
@@ -136,6 +136,9 @@ run: ## Start the proxy server (port 8000, with hot reload)
 
 run-dashboard: ## Start the Streamlit dashboard (port 8501)
 	streamlit run $(DASH)/app.py --server.port $(DASH_PORT)
+
+dashboard-screenshot: ## Headless PNG of call-detail + estimation (needs: pip install -e ".[screenshot]" ; playwright install chromium)
+	@$(TEST_PY) scripts/capture_dashboard_evidence.py
 
 # ---------------------------------------------------------------------------
 # Secrets (Doppler) — see docs/DOPPLER_1PASSWORD_SETUP.md and doppler.yaml
