@@ -30,7 +30,7 @@ When a phase completes, the agent updates this table, the **Status** field of th
 | Date | Phase / Subtask | PR | Commit | Note |
 |------|-----------------|----|--------|------|
 | 2026-05-11 | Phase 4.5 — alert auto-persist + honoring/SDK tests + ledger | [#53](https://github.com/ishrith-gowda/overage/pull/53) | `b0d4565` | Squash-merged to `main`; `alert_persistence`, tests, ROADMAP closure, SDK ruff TC006 casts. |
-| 2026-05-11 | Phase 3.7 — headless dashboard evidence capture | — | pending | `scripts/capture_dashboard_evidence.py`, `make dashboard-screenshot`, optional `.[screenshot]` (Playwright); `proxy/demo_constants.py` single-sources demo API key |
+| 2026-05-11 | Phase 3.7 — headless dashboard evidence capture | — | on `main` | `scripts/capture_dashboard_evidence.py`, `make dashboard-screenshot`, optional `.[screenshot]` (Playwright); `proxy/demo_constants.py` single-sources demo API key; attach PNG to tracker only when you need evidence on the issue/PR. |
 | 2026-05-11 | Phase 3 — PRD §5 call detail + PALACE placeholder + dashboard inspector | [#52](https://github.com/ishrith-gowda/overage/pull/52) | TBD | Flat `GET /v1/calls/{id}`; `PalacePrediction.deterministic_from_prompt_answer` when ML not loaded and `ESTIMATION_ENABLED=true`; background estimation skipped when `ESTIMATION_ENABLED=false`; integration tests + Streamlit detail panel |
 | 2026-05-10 | Phase 0.5 / 0.10 + Phase 1 ledger accuracy | — | — | Alembic smoke in `foundation-quickstart` + `test_migrations_smoke.py`; dev startup runs `alembic upgrade head` for file-backed DBs; ROADMAP §1.3 / Phase 1 / §3 aligned with tests and `benchmark.py` semantics |
 | 2026-05-10 | Phase 0 verification (ledger refresh) | #47 | merged | `verify-python`, auth/request-id tests, CI `foundation-quickstart`, ddtrace-safe pytest |
@@ -404,7 +404,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 | 1.8 | Background task `_record_and_estimate` writes `APICallLog` row | **`test_proxy_route.py::TestProxyBackgroundPersistence`** (no patch on `_record_and_estimate`; session factory aligned with test DB) then **`GET /v1/calls`** lists the new row | done |
 | 1.9 | `scripts/benchmark.py` measures HTTP round-trip (default **`GET /health`**) | `make benchmark` prints p50/p99; default measures local process + HTTP to `/health` per §1.3; optional **`POST`** to `/v1/proxy/...` measures proxy-route overhead without upstream | done |
 | 1.10 | Quickstart in `README.md` shows OpenAI Python SDK with `base_url` redirect | Timed reproduction by maintainer | done |
-| 1.11 | Unit tests `proxy/tests/test_openai_provider.py` | **16** collected tests (parametrized extract matrix, `forward_request`, errors, streaming/TTFT, etc.); run `pytest proxy/tests/test_openai_provider.py --collect-only` | done |
+| 1.11 | Unit tests `proxy/tests/test_openai_provider.py` | **15** collected tests (parametrized extract matrix, `forward_request`, errors, streaming/TTFT, etc.); run `pytest proxy/tests/test_openai_provider.py --collect-only` | done |
 | 1.12 | Integration tests `proxy/tests/test_proxy_route.py::test_proxy_openai_*` (+ streaming / persistence classes) | Mocked httpx; asserts response body, **`X-Overage-Request-Id`**, **`X-Overage-Latency-Added-Ms`**, and (where applicable) DB visibility | done |
 
 **Test plan.**
@@ -457,7 +457,7 @@ This is the long section. Each phase has the same shape; copy it as a template w
 | 2.5 | Add `make benchmark` target wrapping `scripts/benchmark.py --iterations 200` | `make benchmark` prints summary stats | done |
 | 2.6 | Document latency budget in `README.md` (link to `scripts/benchmark.py`) | README has "Latency benchmark (wire RTT)" section | done |
 | 2.7 | Anthropic SDK quickstart in `README.md` | Curl + Python SDK examples documented; **live** curl + SDK roundtrip is maintainer smoke (`make run` + keys), not CI — README states this explicitly | done |
-| 2.8 | Unit + integration tests for Anthropic provider | **`proxy/tests/test_anthropic_provider.py`** (13 collected tests: extraction matrix, `forward_request`, errors, streaming adapter) + **`test_proxy_route.py`** (`TestProxyAnthropicNonStreaming`, `TestProxyAnthropicStreaming`) | done |
+| 2.8 | Unit + integration tests for Anthropic provider | **`proxy/tests/test_anthropic_provider.py`** (14 collected tests: extraction matrix, `forward_request`, errors, streaming adapter) + **`test_proxy_route.py`** (`TestProxyAnthropicNonStreaming`, `TestProxyAnthropicStreaming`) | done |
 
 **Test plan.**
 
@@ -630,13 +630,14 @@ These steps produce the same evidence without automation. Use a machine where **
 | 4.6 | `GET /v1/alerts?status={active,acknowledged,resolved,all}` lists rows | Default `status=active`; filter works | done |
 | 4.7 | Per-token pricing table in `proxy/constants.py` | Matches PRD Appendix A | done |
 | 4.8 | SDK fix: `default_headers={"X-API-Key": OVERAGE_KEY}` for OpenAI + Anthropic clients | `sdk/overage/client.py`; **`proxy/tests/test_sdk_client.py`** exercises `patch_openai` / `patch_anthropic` with fakes (vendor SDKs not required in CI) | done |
-| 4.9 | Tests for summary, group_by, alerts | `test_api.py::test_summary_*` + `test_aggregator.py::test_record_discrepancy_*` + **`test_phase4_alert_persistence.py`** | done |
+| 4.9 | Tests for summary, group_by, alerts | `test_api.py::test_summary_*` (incl. `group_by` **model** / **provider_model**) + `test_aggregator.py::test_record_discrepancy_*` + **`test_phase4_alert_persistence.py`** + **`test_phase4_dashboard_api_contract.py`** (Streamlit KPI / chart / banner JSON contracts) | done |
 
 **Test plan.**
 
-- Unit: `test_aggregator.py` for sliding-window math; `test_api.py` for `group_by` enumeration validation; **`test_phase4_alert_persistence.py::test_maybe_persist_*`** for alert dedupe and disable threshold.
-- Integration: **`test_phase4_alert_persistence.py::test_record_and_estimate_persists_alert_when_window_sustained`** (50 background writes + DB alert row); **`test_api.py::TestSummaryHonoringRate`** for honoring %.
-- Manual smoke: dashboard renders the summary and group breakdown.
+- Unit: `test_aggregator.py` for sliding-window math; `test_api.py` for `group_by` enumeration + **model** + **provider_model** keys; **`test_phase4_alert_persistence.py::test_maybe_persist_*`** for alert dedupe and disable threshold.
+- Integration: **`test_phase4_alert_persistence.py::test_record_and_estimate_persists_alert_when_window_sustained`** (patched aggregate — fast deterministic gate); **`test_phase4_alert_persistence.py::test_record_and_estimate_full_estimation_pipeline_inserts_alert`** (real `aggregate_single_call` + placeholder PALACE + timing regression + alert insert; `@pytest.mark.phase4_regression`); **`test_api.py::TestSummaryHonoringRate`** for honoring %; **`test_phase4_dashboard_api_contract.py`** pins dashboard-facing JSON for summary / timeseries / alerts.
+- CI: `.github/workflows/phase4-regression.yml` runs the **`phase4_regression`** marker on a schedule and when Phase 4 paths change (belt-and-suspenders beside `ci.yml`).
+- Manual smoke: dashboard renders the summary and group breakdown (Playwright capture: `make dashboard-screenshot`).
 
 **Definition of done.**
 
@@ -647,7 +648,7 @@ These steps produce the same evidence without automation. Use a machine where **
 
 **Rollback plan.** No migration; revert PR. If only the alert subsystem needs disabling, set **`DISCREPANCY_ALERT_THRESHOLD_PCT=999`** (or any value **≥ 999**) so no automatic row is inserted; list/ack APIs and summaries keep working.
 
-**Related files.** `proxy/api/routes.py` (summary, timeseries, alerts), `proxy/estimation/aggregator.py` (sliding window), **`proxy/estimation/alert_persistence.py`**, `proxy/config.py` (`discrepancy_alert_threshold_pct`), `proxy/storage/models.py` (`DiscrepancyAlert`, `SummaryStats`, `SummaryGroupRow`), `proxy/constants.py` (pricing), `sdk/overage/client.py`, **`proxy/tests/test_phase4_alert_persistence.py`**, **`proxy/tests/test_sdk_client.py`**.
+**Related files.** `proxy/api/routes.py` (summary, timeseries, alerts), `proxy/estimation/aggregator.py` (sliding window), **`proxy/estimation/alert_persistence.py`**, `proxy/config.py` (`discrepancy_alert_threshold_pct`), `proxy/storage/models.py` (`DiscrepancyAlert`, `SummaryStats`, `SummaryGroupRow`), `proxy/constants.py` (pricing), `sdk/overage/client.py`, **`proxy/tests/test_phase4_alert_persistence.py`**, **`proxy/tests/test_phase4_dashboard_api_contract.py`**, **`proxy/tests/test_sdk_client.py`**, `.github/workflows/phase4-regression.yml`, `Makefile` (`test-phase4`).
 
 **Risks (closed).**
 
@@ -658,7 +659,7 @@ These steps produce the same evidence without automation. Use a machine where **
 
 **Why.** The April close (PR #18) shipped summary, `group_by`, timeseries, list/ack APIs, and the `DiscrepancyAlert` **schema**. A later audit found **no automatic insert** from proxied traffic: `record_discrepancy` ran, but `detect_sustained_discrepancy` was never invoked in production code. The May follow-up wires `proxy/estimation/alert_persistence.py::maybe_persist_sustained_discrepancy_alert` after each `record_discrepancy` inside `_record_and_estimate`, adds `Settings.discrepancy_alert_threshold_pct` / **`DISCREPANCY_ALERT_THRESHOLD_PCT`**, and locks behaviour in **`proxy/tests/test_phase4_alert_persistence.py`**.
 
-**What is still not “live-proven” in CI.** The integration test **`test_record_and_estimate_persists_alert_when_window_sustained`** uses a **patched** `aggregate_single_call` (stable discrepancy %) plus patched `get_settings` / test DB factory so fifty background commits deterministically cross the threshold; it does **not** substitute for fifty real OpenAI/Anthropic round-trips. Production behaviour uses the real aggregator + PALACE/timing when **`ESTIMATION_ENABLED=true`**. Use provider keys and staging load if you need vendor-faithful drift validation.
+**What is still not “live-proven” in CI.** The fast integration test **`test_record_and_estimate_persists_alert_when_window_sustained`** still uses a **patched** `aggregate_single_call` (stable discrepancy %) plus patched `get_settings` / test DB factory so fifty background commits deterministically cross the threshold. A second test, **`test_record_and_estimate_full_estimation_pipeline_inserts_alert`**, exercises the **same** code path with **unmocked** `aggregate_single_call`, real placeholder PALACE + timing regression, and synthetic provider token fields (no upstream HTTP). Neither substitutes for fifty **live** OpenAI/Anthropic round-trips; use provider keys and staging load for vendor-faithful drift validation.
 
 ---
 
@@ -1621,6 +1622,7 @@ This section records every material change to this document and the program. New
 
 | Date | Event | Detail |
 |------|-------|--------|
+| 2026-05-11 | Phase 4 — regression hardening (tests + workflow + roadmap) | Full `_record_and_estimate` integration without aggregate mock; **`test_phase4_dashboard_api_contract.py`** (dashboard JSON contracts); `group_by` **model** / **provider_model** API tests; **`pytest` marker `phase4_regression`**; **`.github/workflows/phase4-regression.yml`**; **`make test-phase4`**; issue template **`phase4_regression`**; ROADMAP Phase 1/2 test counts + Phase 3.7 Recent landings + Phase 4 test plan/post-close note; **`install_test_database_override`** in `conftest.py`. |
 | 2026-05-11 | PR #53 merged; ROADMAP merge-gate cleared | **[#53](https://github.com/ishrith-gowda/overage/pull/53)** squash to `main` at `b0d4565`; §1.0, Recent landings, Phase 4 PR refs + DoD, §5 closure paragraph, post-close note updated (no “pending merge” / branch-only wording). |
 | 2026-05-11 | ROADMAP — Phase 0–4 closure, mocks table, Phase 4 post-close note | Expanded §5 closure from Phases 0–3 to **0–4**; honest limits table (live vs CI, patched alert integration test, fake SDK clients, Story 7 vs `foundation-quickstart`); Phase 4 **post-close** subsection; fixed stray character after “Active phase pointer”. |
 | 2026-05-10 | Phase 4.5 — alert persistence + tests + ledger | Landed on `main` via **PR #53** (`b0d4565`): `proxy/estimation/alert_persistence.py`, `_record_and_estimate` wiring, `Settings.discrepancy_alert_threshold_pct`, `test_phase4_alert_persistence.py`, `test_sdk_client.py`, `TestSummaryHonoringRate`, `async_sqlite_session_factory`, `mypy_path` + SDK `cast` (ruff TC006 quoted cast targets). |

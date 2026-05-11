@@ -21,7 +21,7 @@ DASH_PORT := 8501
 # Phony targets (these are commands, not files)
 # ---------------------------------------------------------------------------
 .PHONY: install install-dev venv-fresh git-usb-clean strip-macos-appledouble lint format typecheck test test-fast test-unit \
-        test-integration security smoke-live run run-dashboard dashboard-screenshot run-doppler check-doppler secrets-verify sync-env-to-doppler \
+        test-integration test-phase4 security smoke-live run run-dashboard dashboard-screenshot run-doppler check-doppler secrets-verify sync-env-to-doppler \
         codecov-local github-secret-codecov verify-python verify-quickstart \
         docker-up docker-down \
         docker-build migrate migrate-generate seed demo benchmark profile-tps report \
@@ -104,6 +104,9 @@ test-unit: strip-macos-appledouble ## Run unit tests only
 
 test-integration: strip-macos-appledouble ## Run integration tests only
 	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false $(TEST_PY) -m pytest $(TESTS) -v -m integration --no-cov --timeout=120
+
+test-phase4: strip-macos-appledouble ## Phase 4 regression marker (alerts + dashboard API contracts; see ROADMAP Phase 4)
+	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false $(TEST_PY) -m pytest $(TESTS) -v -m phase4_regression --no-cov --timeout=120
 
 coverage: strip-macos-appledouble ## Run tests with HTML coverage report
 	DD_TRACE_ENABLED=false DD_INSTRUMENTATION_TELEMETRY_ENABLED=false $(TEST_PY) -m pytest $(TESTS) \

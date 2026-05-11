@@ -174,7 +174,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # Tests: allow assertions (S101 already globally ignored), skip annotations, allow magic values
-"proxy/tests/*" = ["ANN", "S", "PLR2004", "ARG", "ERA"]
+"proxy/tests/*" = ["ANN", "S", "PLR2004", "ARG", "ERA", "TC002"]
 # Alembic migrations: auto-generated, skip most checks
 "proxy/storage/migrations/*" = ["ANN", "ERA", "UP"]
 # Scripts: less strict (one-off tooling)
@@ -262,6 +262,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks integration tests requiring database or network",
     "e2e: marks end-to-end tests requiring full stack",
+    "phase4_regression: Phase 4 alert + summary contract tests (also run in default suite)",
 ]
 filterwarnings = [
     "error",                        # Treat warnings as errors
