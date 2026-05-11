@@ -116,6 +116,19 @@ class OverageClient:
         resp.raise_for_status()
         return resp.json()
 
+    def get_call(self, call_id: int) -> dict[str, Any]:
+        """Fetch a single call with full PRD §5 payload including ``estimation``.
+
+        Args:
+            call_id: Database id from ``GET /v1/calls`` list rows.
+
+        Returns:
+            Flat JSON: call telemetry, ``raw_usage_json``, and nested ``estimation`` or null.
+        """
+        resp = self._http.get(f"/v1/calls/{call_id}")
+        resp.raise_for_status()
+        return resp.json()
+
     def get_alerts(self, status: str = "active") -> dict[str, Any]:
         """List discrepancy alerts for the authenticated user.
 

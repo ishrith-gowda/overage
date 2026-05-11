@@ -73,7 +73,30 @@ curl -sS -X POST "http://localhost:8000/v1/auth/apikey" \
 | `POST` | `/v1/auth/apikey` | Yes | Create additional API key |
 | `POST` | `/v1/proxy/{provider}` | Yes | Forward LLM request (see routes module for path variants) |
 | `GET` | `/v1/calls` | Yes | List proxied calls |
-| `GET` | `/v1/calls/{call_id}` | Yes | Call detail + estimation |
+| `GET` | `/v1/calls/{call_id}` | Yes | **Flat** call telemetry + parsed `raw_usage_json` + nested `estimation` (PRD §5) |
+
+## Call detail (`GET /v1/calls/{id}`)
+
+The response is a **single JSON object** (not wrapped under `call`). Top-level fields mirror `PRD.md` §5 (`id`, `provider`, `model`, `endpoint`, `prompt_hash`, token counts, latency, `raw_usage_json`, `timestamp`, `request_id`, `estimation`). The `estimation` key is `null` until the async estimator persists a row.
+
+Example (truncated):
+
+```json
+{
+  "id": 1,
+  "provider": "openai",
+  "model": "o3",
+  "endpoint": "/v1/chat/completions",
+  "raw_usage_json": {},
+  "estimation": {
+    "palace_estimated_tokens": 8200,
+    "timing_estimated_tokens": 8525,
+    "combined_estimated_tokens": 8350,
+    "discrepancy_pct": 19.76,
+    "palace_model_version": "v0.1.0"
+  }
+}
+```
 | `GET` | `/v1/summary` | Yes | Aggregate discrepancy stats |
 | `GET` | `/v1/summary/timeseries` | Yes | Daily buckets |
 | `GET` | `/v1/report` | Yes | PDF audit (date range query params) |

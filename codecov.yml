@@ -1,0 +1,8 @@
+# Codecov — version-controlled defaults (see docs/CODECOV.md).
+# CI still enforces pytest --cov-fail-under in .github/workflows/ci.yml.
+coverage:
+  status:
+    patch:
+      default:
+        # Patch % is noisy on small PRs and new files until baseline stabilizes; do not block merge.
+        informational: true

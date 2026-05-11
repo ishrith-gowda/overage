@@ -11,6 +11,13 @@ Stub guide for running Overage in development and in the cloud. Expand this docu
 
 Use `GET /health` to confirm the service is up before integrating clients.
 
+## Container image security
+
+CI builds the production **Dockerfile** (see `.github/workflows/ci.yml` → **Docker Build** + **Trivy**). Scan results are uploaded as SARIF to **GitHub Code Scanning**; a **new critical** finding can surface on PRs as a failing **`CodeQL`** check from **GitHub Advanced Security** (separate from the **`CodeQL Analysis`** workflow job).
+
+- The runtime image avoids **`curl`** (reduces `libcurl` / `libssh2` exposure); **`HEALTHCHECK`** uses Python’s **`urllib.request`**.
+- Accepted-but-unpatched distro CVEs are listed in **`.trivyignore`** with rationale — remove entries when Debian security updates ship fixed packages and CI’s Trivy step passes without them (the Trivy action is wired with **`trivyignores: .trivyignore`**).
+
 ## DigitalOcean
 
 The MVP targets a simple VM or App Platform–style deployment on **DigitalOcean** (or similar): container or process manager, HTTPS termination, and managed PostgreSQL compatible with the app’s SQLAlchemy configuration.

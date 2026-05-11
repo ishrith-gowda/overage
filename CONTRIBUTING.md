@@ -151,6 +151,8 @@ If you need to clean up multi-line dev commits before opening a PR, squash them 
 
 5. **Wait for CI** to pass — all required checks (`Lint`, `Type Check`, `Test`, `Security Scan`, `Docker Build`, `CodeQL Analysis`, `Dependency Review`, `Commit Lint`) must be green; `main` is branch-protected and rejects merges otherwise.
 
+   **Duplicate `CodeQL` check (GitHub Advanced Security):** If the PR shows a second check named **`CodeQL`** (from app **`github-advanced-security`**) failing while **`CodeQL Analysis`** (Actions workflow `security.yml`) is green, the failure is usually **Code Scanning** reacting to **another SARIF source** (for example **Trivy** after **Docker Build**), not the Python CodeQL workflow. Fix the underlying finding (see **`.trivyignore`**, **`Dockerfile`**, and `docs/DEPLOYMENT.md` → *Container image security*) or triage with a dated ignore entry. If branch protection lists a stray required **`CodeQL`** status that never passes, remove it so only **`CodeQL Analysis`** (and the other checks in this list) are required.
+
 6. **Request review** (or self-merge if solo development with CI green).
 
 7. **Squash merge** into `main`:

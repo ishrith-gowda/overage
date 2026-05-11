@@ -1,0 +1,8 @@
+# Trivy ignore rules for container scans (CI uploads SARIF → GitHub Code Scanning).
+# Review quarterly; remove entries when Debian security updates ship fixed packages.
+#
+# CVE-2026-7598 (libssh2 integer overflow): Debian bookworm / python:3.12-slim may still ship
+# a vulnerable libssh2 if another package pulls it in. No non-breaking fix in this image
+# until the distro publishes libssh2 with the upstream patch. Tracked via Debian security
+# tracker; re-evaluate on base image bumps.
+CVE-2026-7598

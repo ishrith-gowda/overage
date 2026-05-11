@@ -18,6 +18,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # - libpq-dev: PostgreSQL client library for asyncpg
 # - git: some pip packages install from git
 RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
         gcc \
         g++ \
@@ -78,11 +79,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PROXY_HOST=0.0.0.0 \
     PROXY_PORT=8000
 
-# Install only runtime system dependencies (no build tools)
+# Install only runtime system dependencies (no build tools).
+# Avoid curl: it pulls libcurl → libssh2 (CVE surface on slim); HEALTHCHECK uses stdlib urllib.
 RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
         libpq5 \
-        curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the virtual environment from the builder stage
@@ -107,7 +109,7 @@ EXPOSE 8000
 # Health check — verify the proxy is responsive
 # Interval: check every 30s, Timeout: 5s per check, Retries: 3 before unhealthy
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).read(256)" || exit 1
 
 # Run the proxy server via uvicorn
 # Workers: 1 for MVP (scale via container replicas, not worker processes)

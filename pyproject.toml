@@ -177,11 +177,13 @@ ignore = [
 "scripts/*" = ["ANN", "T20", "S"]
 # Dashboard: Streamlit patterns differ from FastAPI conventions
 "dashboard/*" = ["ANN", "T20", "ARG", "DTZ", "SLF"]
+# Imports follow a deliberate ``sys.path`` bootstrap for ``dashboard.*`` under Streamlit.
+"dashboard/app.py" = ["E402"]
 "sdk/*" = ["ANN", "T20", "SLF"]
 "examples/*" = ["ANN", "T20", "S"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["overage"]
+known-first-party = ["overage", "dashboard"]
 
 [tool.ruff.lint.flake8-annotations]
 allow-star-arg-any = true
@@ -243,6 +245,7 @@ warn_required_dynamic_aliases = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["proxy/tests"]
+pythonpath = ["."]
 addopts = [
     "--tb=short",
     "--strict-markers",
